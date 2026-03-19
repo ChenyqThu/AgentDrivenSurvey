@@ -50,6 +50,15 @@ export interface SurveySettings {
   language: string;
   tone: 'formal' | 'casual' | 'neutral';
   llmConfig?: LLMConfigOverride;
+  notionConfig?: NotionConfig;
+}
+
+export interface NotionConfig {
+  pageId: string;
+  databaseId?: string;
+  autoSync: boolean;
+  lastSyncedAt?: string;
+  syncedSessionIds?: string[];
 }
 
 // Per-survey LLM configuration override

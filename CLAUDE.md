@@ -1,13 +1,14 @@
 # Agent Driven Survey
 
 ## 项目概述
-基于 LLM 的对话式调研系统。管理员创建问卷 → AI 生成调研 Agent 配置 → 用户通过自然对话完成调研 → 实时数据提取 → 结构化报告。
+基于 LLM 的对话式调研系统。管理员创建问卷 → AI 生成调研 Agent 配置 → 用户通过自然对话完成调研 → 实时数据提取 → 结构化报告 → 可选同步到 Notion。
 
 ## 技术栈
 - Next.js 15（App Router）+ TypeScript
 - Drizzle ORM + PostgreSQL
 - Claude API（@anthropic-ai/sdk），支持 OpenAI 兼容回退
 - Tailwind CSS v4
+- @notionhq/client（Notion 集成）
 
 ## 项目结构
 ```
@@ -21,11 +22,14 @@ src/
 │   ├── llm/       # LLM Provider 抽象层（Anthropic + OpenAI 兼容）
 │   ├── survey/    # 问卷类型、管理器、schema 生成器、agent 构建器
 │   ├── conversation/ # 对话引擎、状态机、prompt 构建器、tools、skills
+│   ├── notion/    # Notion 集成（数据库创建、数据同步、对话记录导出）
 │   └── analysis/  # 个体 + 聚合分析（Phase 2）
 ├── components/
 │   ├── admin/     # 管理端 UI 组件
 │   └── chat/      # 聊天 UI：消息、输入、交互卡片
 └── hooks/         # React hooks（useChat、useSurvey）
+docs/
+└── survey-input-guide.md  # 系统设计思路与输入最佳实践指南
 ```
 
 ## 核心架构决策
@@ -35,6 +39,25 @@ src/
 - **交互卡片系统**：render_interactive tool 渲染 NPS/评分/选择题等卡片，用户交互后回调
 - **Prompt 缓存**：System prompt + tools 跨轮次缓存（约 90% 成本节省）
 - **完整对话历史**：~20 轮 ≈ 20K tokens，200K 上下文限制内无需截断
+- **Notion 同步**：会话完成后自动/手动同步结构化数据 + 对话记录到 Notion 数据库
+- **会话完成检测**：所有问题 answered/skipped 后自动标记 session completed，触发 Notion 自动同步
+
+## API 端点
+```
+POST   /api/surveys                      # 创建问卷
+GET    /api/surveys/[id]                  # 获取问卷详情
+POST   /api/surveys/[id]/schema           # 生成问卷 schema
+POST   /api/surveys/[id]/publish          # 发布问卷
+GET    /api/surveys/[id]/status           # 问卷状态
+GET    /api/surveys/[id]/responses         # 问卷回复列表
+GET    /api/surveys/[id]/export            # 导出数据
+PUT    /api/surveys/[id]/notion            # 配置 Notion 集成
+POST   /api/surveys/[id]/notion/sync       # 触发 Notion 同步
+GET    /api/surveys/[id]/notion/status      # Notion 同步状态
+POST   /api/sessions                      # 创建对话会话
+GET    /api/sessions/[id]                  # 获取会话详情
+POST   /api/chat/[sessionId]              # 发送消息（SSE 流式响应）
+```
 
 ## 开发命令
 ```bash
@@ -54,6 +77,7 @@ LLM_API_KEY          # LLM API key（覆盖 ANTHROPIC_API_KEY）
 LLM_MODEL            # 模型标识（默认: claude-sonnet-4-6）
 NEXTAUTH_SECRET      # NextAuth 密钥
 NEXTAUTH_URL         # NextAuth 应用 URL
+NOTION_API_TOKEN     # Notion API token（通过 ntn tokens create survey-sync --plain 生成）
 ```
 
 ## 代码规范

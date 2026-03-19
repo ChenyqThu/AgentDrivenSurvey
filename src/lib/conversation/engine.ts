@@ -5,7 +5,7 @@ import { getProvider, DEFAULT_MODEL } from '@/lib/llm/client';
 import type { StreamEvent } from '@/lib/llm/provider';
 import { interviewTools } from '@/lib/conversation/tools';
 import { buildSystemPrompt } from '@/lib/conversation/prompt-builder';
-import { createInitialState, updateQuestionState } from '@/lib/conversation/state';
+import { createInitialState, updateQuestionState, isComplete } from '@/lib/conversation/state';
 import type { ConversationState, ExtractedField, ProgressUpdate } from '@/lib/conversation/types';
 import type { SurveyContext, SurveySettings, SurveySchema, SurveyAgent } from '@/lib/survey/types';
 import type { LLMConfig } from '@/lib/llm/config';
@@ -296,6 +296,26 @@ export async function handleMessage(
               .update(sessions)
               .set({ lastActiveAt: new Date() })
               .where(eq(sessions.id, sessionId));
+
+            // Check if survey is complete and mark session
+            if (isComplete(currentState)) {
+              await db
+                .update(sessions)
+                .set({ status: 'completed', completedAt: new Date() })
+                .where(eq(sessions.id, sessionId));
+
+              // Auto-sync to Notion if configured
+              if (settings.notionConfig?.autoSync) {
+                // Fire and forget — don't block SSE response
+                import('@/lib/notion/sync')
+                  .then(({ syncSession: notionSync }) =>
+                    notionSync(session.surveyId, sessionId)
+                  )
+                  .catch((err) =>
+                    console.error('Notion auto-sync failed:', err)
+                  );
+              }
+            }
 
             controller.enqueue(encodeSSE({ type: 'done' }));
           }

@@ -1,148 +1,221 @@
 # Agent Driven Survey
 
-[中文文档](./README.zh-CN.md)
+基于 LLM 的对话式调研系统。用 AI 替代传统表单，通过自然对话完成用户调研。
 
-An LLM-driven conversational survey platform inspired by [Anthropic Interviewer](https://github.com/anthropics/anthropic-cookbook). Admins create questionnaires, AI builds intelligent survey agents, and users complete surveys through natural conversation — with real-time structured data extraction.
+## 特性
 
-## Features
+- **对话式调研**：用户与 AI 访谈官自然对话，而非填写表单
+- **两阶段 Agent 构建**：自动将问卷文本转化为结构化 schema + 访谈配置
+- **实时数据提取**：通过 tool_use 在对话中零成本提取结构化数据
+- **交互卡片**：NPS、评分、选择题等自动渲染为可交互 UI 组件
+- **Notion 同步**：调研数据 + 完整对话记录自动同步到 Notion 数据库
+- **多 Provider 支持**：Anthropic 直连 / 自定义代理 / OpenAI 兼容接口
 
-- **AI Agent Builder** — Two-stage pipeline (Opus): raw questionnaire → structured schema → interview agent config (persona, skills, behavior)
-- **Natural Conversation** — Users answer questions through chat, not forms. The AI interviewer adapts tone, follows up intelligently, and detects disengagement
-- **Interactive Cards** — NPS, rating, multiple choice, Likert scale, slider, yes/no cards rendered inline in conversation
-- **Real-time Extraction** — Structured data extracted via `tool_use` during conversation at zero extra LLM cost
-- **Prompt Caching** — System prompt and tools cached across turns (~90% cost reduction on Anthropic)
-- **Provider Abstraction** — Supports Anthropic native, Anthropic Messages (custom proxy), and OpenAI-compatible APIs
-- **Dynamic System Prompt** — Rebuilt each turn with progress tracking, stage awareness, and extracted data context
-
-## Architecture
+## 架构
 
 ```
-Admin uploads questionnaire + context
-  → Schema Agent (Opus) generates SurveySchema
-  → Config Agent (Opus) generates prompt template + skills + behavior
-  → Admin reviews & publishes → survey link generated
-
-User opens /s/[surveyId]
-  → Session created → Chat UI
-  → Each message → dynamic system prompt → Claude streaming + tool_use
-  → extract_data / update_progress / render_interactive (invisible to user)
-  → SSE streaming response to frontend
+┌─────────────────────────────────────────────────────────┐
+│                    管理员创建问卷                         │
+│              rawInput + SurveyContext                     │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│              两阶段 Agent 构建 (Opus)                     │
+│                                                          │
+│  ┌──────────────────┐    ┌──────────────────────────┐   │
+│  │   Schema Agent    │ →  │     Config Agent          │   │
+│  │                   │    │                           │   │
+│  │ • sections        │    │ • 访谈官人设               │   │
+│  │ • questions       │    │ • 开场白/结束语            │   │
+│  │ • extractionFields│    │ • 交互卡片分配             │   │
+│  │ • followUpRules   │    │ • 行为规则                 │   │
+│  └──────────────────┘    └──────────────────────────┘   │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│              SurveyAgent（可发布）                        │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│               对话引擎 (Sonnet)                          │
+│                                                          │
+│  System Prompt = 角色 + 规则 + 进度 + 已提取数据          │
+│                                                          │
+│  Tools:                                                  │
+│    extract_data       → 实时提取结构化数据                │
+│    update_progress    → 更新问题完成状态                  │
+│    render_interactive → 渲染交互卡片 (NPS/评分/选择)      │
+│                                                          │
+│  ┌─────────┐   SSE Stream   ┌─────────────────┐         │
+│  │   LLM   │ ─────────────→ │  前端实时渲染     │         │
+│  └─────────┘                └─────────────────┘         │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│                     数据存储                              │
+│                                                          │
+│  PostgreSQL                    Notion (可选)              │
+│  ┌────────────────┐           ┌─────────────────────┐   │
+│  │ sessions        │           │ 数据库（每会话一行）  │   │
+│  │ messages        │    ──→    │ 对话记录（blocks）   │   │
+│  │ extracted_data  │           │ 字段自动映射列类型    │   │
+│  └────────────────┘           └─────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
 ```
 
-See [docs/architecture.md](./docs/architecture.md) for the full architecture document.
+## 技术栈
 
-## Tech Stack
+| 层 | 技术 |
+|----|------|
+| 框架 | Next.js 15 (App Router) + TypeScript |
+| 数据库 | PostgreSQL + Drizzle ORM |
+| AI | Claude API (@anthropic-ai/sdk)，支持 OpenAI 兼容回退 |
+| 样式 | Tailwind CSS v4 |
+| 集成 | @notionhq/client (Notion API v5) |
 
-| Layer | Choice |
-|-------|--------|
-| Framework | Next.js 15 (App Router) |
-| Language | TypeScript |
-| ORM | Drizzle ORM |
-| Database | PostgreSQL |
-| LLM | Claude API (@anthropic-ai/sdk) |
-| Styling | Tailwind CSS v4 |
+## 快速开始
 
-## Quick Start
-
-### Prerequisites
-- Node.js 18+
-- PostgreSQL
-- Anthropic API key (or compatible proxy)
-
-### Setup
+### 1. 安装依赖
 
 ```bash
-# Clone
-git clone https://github.com/ChenyqThu/AgentDrivenSurvey.git
-cd AgentDrivenSurvey
-
-# Install dependencies
 npm install
+```
 
-# Configure environment
+### 2. 配置环境变量
+
+```bash
 cp .env.local.example .env.local
-# Edit .env.local with your database URL and API key
+```
 
-# Push database schema
+编辑 `.env.local`：
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/agent_driven_survey
+LLM_PROVIDER=anthropic
+LLM_API_KEY=your-api-key
+NEXTAUTH_SECRET=your-secret
+NEXTAUTH_URL=http://localhost:3000
+
+# 可选：Notion 集成
+NOTION_API_TOKEN=your-notion-token
+```
+
+### 3. 初始化数据库
+
+```bash
 npm run db:push
+```
 
-# Start dev server
+### 4. 启动开发服务器
+
+```bash
 npm run dev
 ```
 
-### Environment Variables
+访问 http://localhost:3000/admin 创建问卷。
 
-```env
-# Database
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/agent_driven_survey
-
-# LLM Provider: 'anthropic' | 'anthropic-messages' | 'openai-compatible'
-LLM_PROVIDER=anthropic-messages
-LLM_BASE_URL=https://your-api-proxy.com/api
-LLM_API_KEY=your-api-key
-LLM_MODEL=claude-sonnet-4-6
-
-# NextAuth
-NEXTAUTH_SECRET=your-secret
-NEXTAUTH_URL=http://localhost:3000
-```
-
-## Development Commands
-
-```bash
-npm run dev          # Start dev server (http://localhost:3000)
-npm run build        # Production build
-npm run db:push      # Push schema to database
-npm run db:generate  # Generate migration files
-npm run db:studio    # Open Drizzle Studio
-```
-
-## Project Structure
+## 项目结构
 
 ```
 src/
-├── app/
-│   ├── admin/              # Admin dashboard & survey management
-│   ├── s/[surveyId]/       # Survey chat interface
-│   └── api/                # 10 REST API routes
+├── app/                  # Next.js 页面和 API 路由
+│   ├── admin/            # 管理后台
+│   ├── s/[surveyId]/     # 调研对话界面
+│   └── api/              # REST API
+│       ├── surveys/      # 问卷 CRUD + 发布 + Notion 集成
+│       ├── sessions/     # 会话管理
+│       └── chat/         # SSE 流式对话
 ├── lib/
-│   ├── db/                 # Drizzle schema & connection
-│   ├── llm/                # Provider abstraction layer
-│   │   ├── config.ts       # LLMConfig, provider types
-│   │   ├── provider.ts     # LLMProvider interface
-│   │   ├── anthropic-provider.ts  # Anthropic SDK (caching, retry)
-│   │   └── openai-provider.ts     # OpenAI-compatible (fetch)
-│   ├── survey/
-│   │   ├── schema-generator.ts    # Stage 1: Schema Agent (Opus)
-│   │   ├── agent-builder.ts       # Stage 2: Config Agent (Opus)
-│   │   └── manager.ts             # Survey CRUD & lifecycle
-│   └── conversation/
-│       ├── engine.ts              # Core conversation engine
-│       ├── prompt-builder.ts      # Dynamic system prompt
-│       ├── state.ts               # Conversation state machine
-│       ├── tools.ts               # extract_data, update_progress
-│       └── skills.ts              # Interactive card definitions
-├── components/
-│   ├── admin/              # Admin UI components
-│   └── chat/               # Chat components + interactive cards
-└── hooks/                  # useChat, useSurvey
+│   ├── db/               # 数据库 schema + 连接
+│   ├── llm/              # LLM Provider 抽象层
+│   ├── survey/           # 问卷类型、schema 生成器、agent 构建器
+│   ├── conversation/     # 对话引擎、状态机、tools、交互卡片
+│   ├── notion/           # Notion 同步模块
+│   │   ├── client.ts     # SDK 单例 + 429 重试
+│   │   ├── schema-mapper.ts  # 提取字段 → Notion 列类型映射
+│   │   ├── database.ts   # 创建/确保 Notion 数据库
+│   │   ├── sync.ts       # 同步编排器
+│   │   └── markdown.ts   # 对话记录 → Notion blocks
+│   └── analysis/         # 分析报告（Phase 2）
+├── components/           # React UI 组件
+├── hooks/                # React hooks
+docs/
+└── survey-input-guide.md # 系统设计与输入最佳实践指南
 ```
 
-## API Endpoints
+## API 端点
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/surveys` | Create survey + AI agent generation |
-| GET | `/api/surveys` | List surveys |
-| GET | `/api/surveys/[id]` | Survey details |
-| PUT | `/api/surveys/[id]/schema` | Update schema |
-| POST | `/api/surveys/[id]/publish` | Publish survey |
-| PATCH | `/api/surveys/[id]/status` | Update status |
-| POST | `/api/sessions` | Create session |
-| GET | `/api/sessions/[id]` | Get/resume session |
-| POST | `/api/chat/[sessionId]` | Send message (SSE) |
-| GET | `/api/surveys/[id]/responses` | Get responses |
-| GET | `/api/surveys/[id]/export` | Export CSV/JSON |
+### 问卷管理
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/surveys` | 创建问卷 |
+| GET | `/api/surveys/[id]` | 获取问卷详情 |
+| POST | `/api/surveys/[id]/schema` | 生成结构化 schema |
+| POST | `/api/surveys/[id]/publish` | 发布问卷 |
+| GET | `/api/surveys/[id]/status` | 问卷状态 |
+| GET | `/api/surveys/[id]/responses` | 回复列表 |
+| GET | `/api/surveys/[id]/export` | 导出数据 |
+
+### Notion 集成
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| PUT | `/api/surveys/[id]/notion` | 配置 Notion 页面 |
+| POST | `/api/surveys/[id]/notion/sync` | 触发同步（支持增量） |
+| GET | `/api/surveys/[id]/notion/status` | 同步状态查询 |
+
+### 对话
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/sessions` | 创建对话会话 |
+| GET | `/api/sessions/[id]` | 获取会话详情 |
+| POST | `/api/chat/[sessionId]` | 发送消息（SSE 流式响应） |
+
+## Notion 集成
+
+### 配置步骤
+
+1. 创建 Notion Integration 并获取 token：
+   ```bash
+   ntn tokens create survey-sync --plain
+   ```
+
+2. 将 token 写入 `.env.local`：
+   ```env
+   NOTION_API_TOKEN=ntn_xxx
+   ```
+
+3. 在 Notion 中创建一个页面，将 Integration 添加到该页面
+
+4. 通过 API 配置：
+   ```bash
+   curl -X PUT http://localhost:3000/api/surveys/{id}/notion \
+     -H 'Content-Type: application/json' \
+     -d '{"pageId": "your-page-id", "autoSync": true}'
+   ```
+
+### 同步内容
+
+- **数据库**：每个提取字段映射为一列，每个会话写入一行
+- **对话记录**：完整对话以引用块形式追加到每行数据的页面中
+- **自动同步**：开启 `autoSync` 后，会话完成时自动同步（不阻塞对话响应）
+
+### 字段映射
+
+| 提取字段类型 | Notion 列类型 |
+|-------------|--------------|
+| `string` | Rich Text |
+| `number` | Number |
+| `boolean` | Checkbox |
+| `string[]` | Multi Select |
+| `object` | Rich Text (JSON) |
+
+## 输入指南
+
+详见 [docs/survey-input-guide.md](docs/survey-input-guide.md) — 包含系统设计思路、最佳输入原则和完整示例。
 
 ## License
 
