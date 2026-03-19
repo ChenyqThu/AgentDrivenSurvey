@@ -1,71 +1,73 @@
 # Agent Driven Survey
 
-## Project Overview
-LLM-driven conversational survey system. Admin creates surveys → AI generates agent config → users complete surveys via natural conversation → real-time data extraction → structured reports.
+## 项目概述
+基于 LLM 的对话式调研系统。管理员创建问卷 → AI 生成调研 Agent 配置 → 用户通过自然对话完成调研 → 实时数据提取 → 结构化报告。
 
-## Tech Stack
-- Next.js 15 (App Router) + TypeScript
+## 技术栈
+- Next.js 15（App Router）+ TypeScript
 - Drizzle ORM + PostgreSQL
-- Claude API (@anthropic-ai/sdk) with OpenAI-compatible fallback
+- Claude API（@anthropic-ai/sdk），支持 OpenAI 兼容回退
 - Tailwind CSS v4
 
-## Project Structure
+## 项目结构
 ```
 src/
-├── app/           # Next.js pages and API routes
-│   ├── admin/     # Admin dashboard, survey management
-│   ├── s/         # Survey chat interface (/s/[surveyId])
-│   └── api/       # REST API endpoints
+├── app/           # Next.js 页面和 API 路由
+│   ├── admin/     # 管理后台，问卷管理
+│   ├── s/         # 调研对话界面（/s/[surveyId]）
+│   └── api/       # REST API 端点
 ├── lib/
-│   ├── db/        # Drizzle schema, migrations, connection
-│   ├── llm/       # LLM provider abstraction (Anthropic + OpenAI-compatible)
-│   ├── survey/    # Survey types, manager, schema generator
-│   ├── conversation/ # Conversation engine, state machine, prompt builder, tools
-│   └── analysis/  # Individual + aggregate analysis (Phase 2)
+│   ├── db/        # Drizzle schema、migrations、数据库连接
+│   ├── llm/       # LLM Provider 抽象层（Anthropic + OpenAI 兼容）
+│   ├── survey/    # 问卷类型、管理器、schema 生成器、agent 构建器
+│   ├── conversation/ # 对话引擎、状态机、prompt 构建器、tools、skills
+│   └── analysis/  # 个体 + 聚合分析（Phase 2）
 ├── components/
-│   ├── admin/     # Admin UI components
-│   └── chat/      # Chat UI: messages, input, interactive cards
-└── hooks/         # React hooks (useChat, useSurvey)
+│   ├── admin/     # 管理端 UI 组件
+│   └── chat/      # 聊天 UI：消息、输入、交互卡片
+└── hooks/         # React hooks（useChat、useSurvey）
 ```
 
-## Key Architecture Decisions
-- **Dual-prompt architecture**: Separate prompts for schema generation (one-time) and interview (per-turn)
-- **Real-time extraction via tool_use**: Zero extra LLM cost, extract_data + update_progress tools
-- **Provider abstraction**: Support Anthropic native + OpenAI-compatible APIs via LLMConfig
-- **Interactive cards**: render_interactive tool for NPS/rating/choice cards with callback
-- **Prompt caching**: System prompt + tools cached across turns (90% cost reduction)
-- **Full conversation history**: ~20 turns fits within 200K context, no truncation needed for MVP
+## 核心架构决策
+- **两阶段 Agent 构建**：Schema Agent（结构化问卷）和 Config Agent（人设/技能/行为）独立运行，均使用 Opus 模型
+- **实时 tool_use 提取**：零额外 LLM 成本，extract_data + update_progress + render_interactive 工具
+- **Provider 抽象**：支持 anthropic / anthropic-messages（自定义代理）/ openai-compatible 三种 Provider
+- **交互卡片系统**：render_interactive tool 渲染 NPS/评分/选择题等卡片，用户交互后回调
+- **Prompt 缓存**：System prompt + tools 跨轮次缓存（约 90% 成本节省）
+- **完整对话历史**：~20 轮 ≈ 20K tokens，200K 上下文限制内无需截断
 
-## Development Commands
+## 开发命令
 ```bash
-npm run dev          # Start dev server
-npm run build        # Production build
-npm run db:push      # Push schema to database
-npm run db:generate  # Generate migration files
-npm run db:studio    # Open Drizzle Studio
+npm run dev          # 启动开发服务器
+npm run build        # 生产构建
+npm run db:push      # 推送 schema 到数据库
+npm run db:generate  # 生成迁移文件
+npm run db:studio    # 打开 Drizzle Studio
 ```
 
-## Environment Variables
+## 环境变量
 ```
-DATABASE_URL         # PostgreSQL connection string
-ANTHROPIC_API_KEY    # Anthropic API key (default provider)
-LLM_PROVIDER         # 'anthropic' | 'openai-compatible' (default: anthropic)
-LLM_BASE_URL         # Custom LLM endpoint URL
-LLM_API_KEY          # Custom LLM API key (overrides ANTHROPIC_API_KEY)
-LLM_MODEL            # Model identifier (default: claude-sonnet-4-20250514)
-NEXTAUTH_SECRET      # NextAuth secret
-NEXTAUTH_URL         # App URL for NextAuth
+DATABASE_URL         # PostgreSQL 连接字符串
+LLM_PROVIDER         # 'anthropic' | 'anthropic-messages' | 'openai-compatible'（默认: anthropic）
+LLM_BASE_URL         # 自定义 LLM 端点 URL
+LLM_API_KEY          # LLM API key（覆盖 ANTHROPIC_API_KEY）
+LLM_MODEL            # 模型标识（默认: claude-sonnet-4-6）
+NEXTAUTH_SECRET      # NextAuth 密钥
+NEXTAUTH_URL         # NextAuth 应用 URL
 ```
 
-## Conventions
-- Use `@/` import alias for src/ imports
-- API routes use Next.js 15 async params: `{ params }: { params: Promise<{ id: string }> }`
-- All DB operations use Drizzle ORM query builder
-- JSONB fields cast via `as unknown as Record<string, unknown>` for TypeScript
-- SSE streaming format: `data: {"type":"text|interactive_card|tool_use|done",...}\n\n`
-- Interactive card interactions sent as structured JSON messages with `isCardInteraction: true`
+## 代码规范
+- 使用 `@/` 导入别名指向 src/
+- API 路由使用 Next.js 15 异步参数：`{ params }: { params: Promise<{ id: string }> }`
+- 所有数据库操作使用 Drizzle ORM query builder
+- JSONB 字段通过 `as unknown as Record<string, unknown>` 进行 TypeScript 类型转换
+- SSE 流式格式：`data: {"type":"text|interactive_card|tool_use|done",...}\n\n`
+- 交互卡片回调以结构化 JSON 消息发送，携带 `isCardInteraction: true`
 
-## Testing
-- Test with a real PostgreSQL database (no mocks)
-- Use the `/admin/surveys/new` page to create test surveys
-- Chat interface at `/s/[surveyId]` for end-to-end testing
+## 测试
+- 使用真实 PostgreSQL 数据库测试（不使用 mock）
+- 通过 `/admin/surveys/new` 页面创建测试问卷
+- 在 `/s/[surveyId]` 进行端到端对话测试
+
+# currentDate
+Today's date is 2026-03-19.

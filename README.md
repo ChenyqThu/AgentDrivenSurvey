@@ -1,36 +1,149 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Agent Driven Survey
 
-## Getting Started
+[中文文档](./README.zh-CN.md)
 
-First, run the development server:
+An LLM-driven conversational survey platform inspired by [Anthropic Interviewer](https://github.com/anthropics/anthropic-cookbook). Admins create questionnaires, AI builds intelligent survey agents, and users complete surveys through natural conversation — with real-time structured data extraction.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Features
+
+- **AI Agent Builder** — Two-stage pipeline (Opus): raw questionnaire → structured schema → interview agent config (persona, skills, behavior)
+- **Natural Conversation** — Users answer questions through chat, not forms. The AI interviewer adapts tone, follows up intelligently, and detects disengagement
+- **Interactive Cards** — NPS, rating, multiple choice, Likert scale, slider, yes/no cards rendered inline in conversation
+- **Real-time Extraction** — Structured data extracted via `tool_use` during conversation at zero extra LLM cost
+- **Prompt Caching** — System prompt and tools cached across turns (~90% cost reduction on Anthropic)
+- **Provider Abstraction** — Supports Anthropic native, Anthropic Messages (custom proxy), and OpenAI-compatible APIs
+- **Dynamic System Prompt** — Rebuilt each turn with progress tracking, stage awareness, and extracted data context
+
+## Architecture
+
+```
+Admin uploads questionnaire + context
+  → Schema Agent (Opus) generates SurveySchema
+  → Config Agent (Opus) generates prompt template + skills + behavior
+  → Admin reviews & publishes → survey link generated
+
+User opens /s/[surveyId]
+  → Session created → Chat UI
+  → Each message → dynamic system prompt → Claude streaming + tool_use
+  → extract_data / update_progress / render_interactive (invisible to user)
+  → SSE streaming response to frontend
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+See [docs/architecture.md](./docs/architecture.md) for the full architecture document.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Layer | Choice |
+|-------|--------|
+| Framework | Next.js 15 (App Router) |
+| Language | TypeScript |
+| ORM | Drizzle ORM |
+| Database | PostgreSQL |
+| LLM | Claude API (@anthropic-ai/sdk) |
+| Styling | Tailwind CSS v4 |
 
-## Learn More
+## Quick Start
 
-To learn more about Next.js, take a look at the following resources:
+### Prerequisites
+- Node.js 18+
+- PostgreSQL
+- Anthropic API key (or compatible proxy)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Setup
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+# Clone
+git clone https://github.com/ChenyqThu/AgentDrivenSurvey.git
+cd AgentDrivenSurvey
 
-## Deploy on Vercel
+# Install dependencies
+npm install
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# Configure environment
+cp .env.local.example .env.local
+# Edit .env.local with your database URL and API key
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Push database schema
+npm run db:push
+
+# Start dev server
+npm run dev
+```
+
+### Environment Variables
+
+```env
+# Database
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/agent_driven_survey
+
+# LLM Provider: 'anthropic' | 'anthropic-messages' | 'openai-compatible'
+LLM_PROVIDER=anthropic-messages
+LLM_BASE_URL=https://your-api-proxy.com/api
+LLM_API_KEY=your-api-key
+LLM_MODEL=claude-sonnet-4-6
+
+# NextAuth
+NEXTAUTH_SECRET=your-secret
+NEXTAUTH_URL=http://localhost:3000
+```
+
+## Development Commands
+
+```bash
+npm run dev          # Start dev server (http://localhost:3000)
+npm run build        # Production build
+npm run db:push      # Push schema to database
+npm run db:generate  # Generate migration files
+npm run db:studio    # Open Drizzle Studio
+```
+
+## Project Structure
+
+```
+src/
+├── app/
+│   ├── admin/              # Admin dashboard & survey management
+│   ├── s/[surveyId]/       # Survey chat interface
+│   └── api/                # 10 REST API routes
+├── lib/
+│   ├── db/                 # Drizzle schema & connection
+│   ├── llm/                # Provider abstraction layer
+│   │   ├── config.ts       # LLMConfig, provider types
+│   │   ├── provider.ts     # LLMProvider interface
+│   │   ├── anthropic-provider.ts  # Anthropic SDK (caching, retry)
+│   │   └── openai-provider.ts     # OpenAI-compatible (fetch)
+│   ├── survey/
+│   │   ├── schema-generator.ts    # Stage 1: Schema Agent (Opus)
+│   │   ├── agent-builder.ts       # Stage 2: Config Agent (Opus)
+│   │   └── manager.ts             # Survey CRUD & lifecycle
+│   └── conversation/
+│       ├── engine.ts              # Core conversation engine
+│       ├── prompt-builder.ts      # Dynamic system prompt
+│       ├── state.ts               # Conversation state machine
+│       ├── tools.ts               # extract_data, update_progress
+│       └── skills.ts              # Interactive card definitions
+├── components/
+│   ├── admin/              # Admin UI components
+│   └── chat/               # Chat components + interactive cards
+└── hooks/                  # useChat, useSurvey
+```
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/surveys` | Create survey + AI agent generation |
+| GET | `/api/surveys` | List surveys |
+| GET | `/api/surveys/[id]` | Survey details |
+| PUT | `/api/surveys/[id]/schema` | Update schema |
+| POST | `/api/surveys/[id]/publish` | Publish survey |
+| PATCH | `/api/surveys/[id]/status` | Update status |
+| POST | `/api/sessions` | Create session |
+| GET | `/api/sessions/[id]` | Get/resume session |
+| POST | `/api/chat/[sessionId]` | Send message (SSE) |
+| GET | `/api/surveys/[id]/responses` | Get responses |
+| GET | `/api/surveys/[id]/export` | Export CSV/JSON |
+
+## License
+
+MIT
