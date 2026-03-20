@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { CardData } from "@/components/chat/interactive-card";
 
 export interface ChatMessage {
@@ -29,13 +29,16 @@ export function useChat(sessionId: string): UseChatReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Use ref for loading guard so sendMessage has stable identity
+  const loadingRef = useRef(false);
+
   const loadHistory = useCallback((history: ChatMessage[]) => {
     setMessages(history);
   }, []);
 
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!content.trim() || isLoading) return;
+      if (!content.trim() || loadingRef.current) return;
 
       const isAutoStart = content.trim() === "__START__";
 
@@ -49,6 +52,8 @@ export function useChat(sessionId: string): UseChatReturn {
         };
         setMessages((prev) => [...prev, userMessage]);
       }
+
+      loadingRef.current = true;
       setIsLoading(true);
       setError(null);
 
@@ -76,7 +81,6 @@ export function useChat(sessionId: string): UseChatReturn {
         if (contentType.includes("text/event-stream")) {
           await consumeSSE(res, assistantId, setMessages);
         } else {
-          // Plain JSON fallback
           const data = await res.json();
           const text =
             data.message ??
@@ -92,18 +96,19 @@ export function useChat(sessionId: string): UseChatReturn {
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Something went wrong";
         setError(msg);
-        // Remove the empty assistant placeholder on error
         setMessages((prev) => prev.filter((m) => m.id !== assistantId));
       } finally {
+        loadingRef.current = false;
         setIsLoading(false);
       }
     },
-    [sessionId, isLoading]
+    [sessionId]
   );
 
   const submitCardInteraction = useCallback(
     async (cardId: string, cardType: string, value: unknown) => {
-      // Show the actual selected value as the user message
+      if (loadingRef.current) return;
+
       const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
       const interactionMessage: ChatMessage = {
         id: generateId(),
@@ -112,6 +117,8 @@ export function useChat(sessionId: string): UseChatReturn {
         createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, interactionMessage]);
+
+      loadingRef.current = true;
       setIsLoading(true);
       setError(null);
 
@@ -158,10 +165,11 @@ export function useChat(sessionId: string): UseChatReturn {
         setError(msg);
         setMessages((prev) => prev.filter((m) => m.id !== assistantId));
       } finally {
+        loadingRef.current = false;
         setIsLoading(false);
       }
     },
-    [sessionId, isLoading]
+    [sessionId]
   );
 
   return { messages, isLoading, error, sendMessage, loadHistory, submitCardInteraction };
@@ -210,7 +218,6 @@ async function consumeSSE(
           );
         }
 
-        // Legacy shape: content_block_delta with text_delta
         if (
           event.type === "content_block_delta" &&
           event.delta?.type === "text_delta"
