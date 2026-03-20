@@ -20,52 +20,6 @@ interface SessionInfo {
 
 const SESSION_KEY_PREFIX = "survey_session_";
 
-// Parse SSE stream to extract AI greeting messages
-async function fetchAIGreeting(sessionId: string): Promise<ChatMessage[]> {
-  const res = await fetch(`/api/chat/${sessionId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: "__START__" }),
-  });
-
-  if (!res.ok || !res.body) return [];
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let text = "";
-  const cards: Array<{ id: string; type: string; question: string; options?: string[]; config?: Record<string, unknown> }> = [];
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const raw = line.slice(6).trim();
-      if (!raw || raw === "[DONE]") continue;
-      try {
-        const event = JSON.parse(raw);
-        if (event.type === "text" && event.content) text += event.content;
-        if (event.type === "interactive_card" && event.card) cards.push(event.card);
-      } catch { /* skip */ }
-    }
-  }
-
-  if (!text && cards.length === 0) return [];
-
-  return [{
-    id: `greeting_${Date.now()}`,
-    role: "assistant" as const,
-    content: text,
-    cards: cards.length > 0 ? cards : undefined,
-    createdAt: new Date().toISOString(),
-  }];
-}
-
 export default function SurveyPage({
   params,
 }: {
@@ -137,9 +91,8 @@ export default function SurveyPage({
       const data: SessionInfo = await res.json();
       localStorage.setItem(storageKey, data.id);
 
-      // Trigger AI greeting immediately — user sees the welcome message right away
-      const greetingMessages = await fetchAIGreeting(data.id);
-      setSession({ id: data.id, messages: greetingMessages });
+      // Enter chat immediately — ChatContainer will trigger streaming greeting
+      setSession({ id: data.id, messages: [] });
       setStarted(true);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Failed to start survey");
@@ -212,6 +165,7 @@ export default function SurveyPage({
           surveyTitle={survey.title}
           surveyDescription={survey.description}
           initialMessages={session.messages}
+          autoStart={session.messages?.length === 0}
         />
       )}
     </div>
