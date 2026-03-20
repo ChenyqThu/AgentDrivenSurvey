@@ -31,27 +31,22 @@ export const interviewTools: ToolDefinition[] = [
     },
   },
   {
-    name: 'update_progress',
+    name: 'conclude_interview',
     description:
-      'Updates the completion status of a specific question in the survey. Call this after a question has been answered or when the user explicitly skips it.',
+      'Call this when the interview has reached a natural conclusion — the user wants to stop, you have gathered enough insights, or the conversation has wound down. This marks the session as complete.',
     input_schema: {
       type: 'object',
       properties: {
-        section_id: {
+        reason: {
           type: 'string',
-          description: 'The identifier of the survey section containing the question.',
+          description: 'Why the interview is concluding, e.g. "user requested to stop", "covered key topics thoroughly", "natural end of conversation".',
         },
-        question_id: {
+        summary: {
           type: 'string',
-          description: 'The identifier of the question whose status is being updated.',
-        },
-        status: {
-          type: 'string',
-          enum: ['answered', 'skipped'],
-          description: "The new status of the question: 'answered' or 'skipped'.",
+          description: 'Optional brief summary of key insights gathered during the interview.',
         },
       },
-      required: ['section_id', 'question_id', 'status'],
+      required: ['reason'],
     },
   },
   renderInteractiveTool,

@@ -4,9 +4,9 @@ import { createSession } from '@/lib/conversation/engine';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { surveyId, respondentId } = body;
+    const { surveyId, respondentId, respondentInfo } = body;
 
-    const sessionId = await createSession(surveyId, respondentId);
+    const sessionId = await createSession(surveyId, respondentId, respondentInfo);
 
     return NextResponse.json({ id: sessionId }, { status: 201 });
   } catch (error) {

@@ -2,15 +2,17 @@
 
 import { useEffect, useRef } from "react";
 import { SimpleMarkdown } from "./simple-markdown";
+import { InlineTypingIndicator } from "./typing-indicator";
 import type { ChatMessage } from "@/hooks/use-chat";
 import { InteractiveCard } from "./interactive-card";
 
 interface MessageListProps {
   messages: ChatMessage[];
+  isLoading?: boolean;
   onCardSubmit?: (cardId: string, cardType: string, value: unknown) => void;
 }
 
-export function MessageList({ messages, onCardSubmit }: MessageListProps) {
+export function MessageList({ messages, isLoading, onCardSubmit }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,9 +29,20 @@ export function MessageList({ messages, onCardSubmit }: MessageListProps) {
 
   return (
     <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-6 space-y-4">
-      {messages.map((msg) => (
-        <MessageBubble key={msg.id} message={msg} onCardSubmit={onCardSubmit} />
-      ))}
+      {messages.map((msg, idx) => {
+        // Show inline typing for the last assistant message if it has no content yet and we're loading
+        const isLastMsg = idx === messages.length - 1;
+        const showTyping = isLoading && isLastMsg && msg.role === "assistant" && !msg.content;
+
+        return (
+          <MessageBubble
+            key={msg.id}
+            message={msg}
+            showTypingIndicator={showTyping}
+            onCardSubmit={onCardSubmit}
+          />
+        );
+      })}
       <div ref={bottomRef} />
     </div>
   );
@@ -37,9 +50,11 @@ export function MessageList({ messages, onCardSubmit }: MessageListProps) {
 
 function MessageBubble({
   message,
+  showTypingIndicator,
   onCardSubmit,
 }: {
   message: ChatMessage;
+  showTypingIndicator?: boolean;
   onCardSubmit?: (cardId: string, cardType: string, value: unknown) => void;
 }) {
   const isUser = message.role === "user";
@@ -55,8 +70,8 @@ function MessageBubble({
       )}
 
       <div className={`flex flex-col gap-2 ${isUser ? "items-end" : "items-start"} max-w-[85%] sm:max-w-[75%]`}>
-        {/* Bubble — only show if there is text content */}
-        {(message.content || !hasCards) && (
+        {/* Bubble */}
+        {(message.content || !hasCards || showTypingIndicator) && (
           <div
             className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
               isUser
@@ -64,14 +79,16 @@ function MessageBubble({
                 : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-bl-sm"
             }`}
           >
-            {message.content ? (
+            {showTypingIndicator ? (
+              <InlineTypingIndicator />
+            ) : message.content ? (
               isUser ? (
                 <p className="whitespace-pre-wrap break-words" dir="auto">{message.content}</p>
               ) : (
                 <SimpleMarkdown content={message.content} className="break-words" />
               )
             ) : (
-              <span className="opacity-50 italic text-xs">…</span>
+              <span className="opacity-50 italic text-xs">&hellip;</span>
             )}
           </div>
         )}

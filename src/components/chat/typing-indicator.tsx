@@ -27,7 +27,11 @@ function pickRandom(): string {
   return QUIRKY_PHRASES[Math.floor(Math.random() * QUIRKY_PHRASES.length)];
 }
 
-export function TypingIndicator() {
+/**
+ * Inline typing indicator — renders INSIDE an AI message bubble
+ * when content hasn't arrived yet.
+ */
+export function InlineTypingIndicator() {
   const [phrase, setPhrase] = useState("");
 
   useEffect(() => {
@@ -37,24 +41,19 @@ export function TypingIndicator() {
   }, []);
 
   return (
-    <div className="flex items-end gap-3 px-4 py-2">
-      <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white shadow-sm">
-        AI
-      </div>
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl rounded-bl-sm px-5 py-3.5 shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <div className="flex items-center gap-1.5">
-            <span className="typing-dot w-1.5 h-1.5 rounded-full bg-blue-400" />
-            <span className="typing-dot w-1.5 h-1.5 rounded-full bg-blue-400" />
-            <span className="typing-dot w-1.5 h-1.5 rounded-full bg-blue-400" />
-          </div>
-          <span
-            key={phrase}
-            className="text-xs text-gray-400 dark:text-gray-500 italic phrase-fade"
-          >
-            {phrase}
-          </span>
+    <>
+      <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-1.5">
+          <span className="typing-dot w-1.5 h-1.5 rounded-full bg-blue-400" />
+          <span className="typing-dot w-1.5 h-1.5 rounded-full bg-blue-400" />
+          <span className="typing-dot w-1.5 h-1.5 rounded-full bg-blue-400" />
         </div>
+        <span
+          key={phrase}
+          className="text-xs text-gray-400 dark:text-gray-500 italic phrase-fade"
+        >
+          {phrase}
+        </span>
       </div>
       <style jsx>{`
         .typing-dot {
@@ -81,6 +80,22 @@ export function TypingIndicator() {
           to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
+    </>
+  );
+}
+
+/**
+ * Standalone typing indicator — used in the "preparing" phase before chat starts.
+ */
+export function TypingIndicator() {
+  return (
+    <div className="flex items-end gap-3 px-4 py-2">
+      <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white shadow-sm">
+        AI
+      </div>
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl rounded-bl-sm px-5 py-3.5 shadow-sm">
+        <InlineTypingIndicator />
+      </div>
     </div>
   );
 }

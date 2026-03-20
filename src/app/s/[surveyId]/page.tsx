@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, use } from "react";
+import { useEffect, useState, useMemo, useCallback, use } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChatContainer } from "@/components/chat/chat-container";
 import { WelcomeScreen } from "@/components/chat/welcome-screen";
@@ -28,6 +28,20 @@ export default function SurveyPage({
     [searchParams]
   );
 
+  // Parse imported respondent profile from URL: ?profile=<base64json>
+  const respondentInfo = useMemo(() => {
+    const profileParam = searchParams.get("profile");
+    if (!profileParam) return undefined;
+    try {
+      const decoded = atob(profileParam);
+      const parsed = JSON.parse(decoded);
+      return typeof parsed === "object" && parsed !== null ? parsed as Record<string, unknown> : undefined;
+    } catch {
+      console.warn("Failed to decode profile parameter");
+      return undefined;
+    }
+  }, [searchParams]);
+
   const [survey, setSurvey] = useState<SurveyInfo | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
@@ -49,6 +63,37 @@ export default function SurveyPage({
     }
     loadSurvey();
   }, [surveyId]);
+
+  // Restart: create a brand new session
+  const handleRestart = useCallback(async () => {
+    const storageKey = `${SESSION_KEY_PREFIX}${surveyId}_${respondentId}`;
+    localStorage.removeItem(storageKey);
+    setSessionId(null);
+    setInitialMessages([]);
+    setPhase("preparing");
+
+    try {
+      const res = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ surveyId, respondentId, respondentInfo }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to create new session");
+      }
+
+      const { id: newSessionId } = await res.json();
+      localStorage.setItem(storageKey, newSessionId);
+      setSessionId(newSessionId);
+      setInitialMessages([]);
+      setPhase("chat");
+    } catch (err) {
+      console.error("Failed to restart survey:", err);
+      setLoadError(err instanceof Error ? err.message : "Failed to restart");
+      setPhase("welcome");
+    }
+  }, [surveyId, respondentId, respondentInfo]);
 
   async function handleStart() {
     setLoadError(null);
@@ -97,7 +142,7 @@ export default function SurveyPage({
       const res = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ surveyId, respondentId }),
+        body: JSON.stringify({ surveyId, respondentId, respondentInfo }),
       });
 
       if (!res.ok) {
@@ -169,11 +214,13 @@ export default function SurveyPage({
   if (phase === "preparing") {
     return (
       <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950">
-        {/* Same header as ChatContainer */}
-        <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3">
+        {/* Header matching chat style */}
+        <div className="flex-shrink-0 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3">
           <div className="max-w-3xl mx-auto flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white">
-              A
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-sm">
+              <svg className="w-4.5 h-4.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
             </div>
             <div>
               <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight">
@@ -199,6 +246,7 @@ export default function SurveyPage({
         surveyTitle={survey.title}
         surveyDescription={survey.description}
         initialMessages={initialMessages}
+        onRestart={handleRestart}
       />
     </div>
   );

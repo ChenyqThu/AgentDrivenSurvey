@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { CardData } from "@/components/chat/interactive-card";
 
 export interface ChatMessage {
@@ -24,6 +24,9 @@ function generateId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
+const IDLE_TIMEOUT_MS = 45_000;  // 45 seconds
+const MAX_NUDGES = 2;            // max 2 nudges per session
+
 export function useChat(sessionId: string): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -32,6 +35,88 @@ export function useChat(sessionId: string): UseChatReturn {
   // Use ref for loading guard so sendMessage has stable identity
   const loadingRef = useRef(false);
 
+  // Nudge mechanism refs
+  const nudgeCountRef = useRef(0);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionCompletedRef = useRef(false);
+
+  const clearIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+  }, []);
+
+  const sendNudge = useCallback(async () => {
+    if (
+      loadingRef.current ||
+      nudgeCountRef.current >= MAX_NUDGES ||
+      sessionCompletedRef.current
+    ) return;
+
+    nudgeCountRef.current++;
+    loadingRef.current = true;
+    setIsLoading(true);
+
+    // Don't add a user message bubble for nudge
+    const assistantId = generateId();
+    setMessages((prev) => [
+      ...prev,
+      { id: assistantId, role: "assistant", content: "", cards: [] },
+    ]);
+
+    try {
+      const res = await fetch(`/api/chat/${sessionId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "__NUDGE__", isNudge: true }),
+      });
+
+      if (!res.ok) {
+        // Silently fail nudge — not critical
+        setMessages((prev) => prev.filter((m) => m.id !== assistantId));
+        return;
+      }
+
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("text/event-stream")) {
+        await consumeSSE(res, assistantId, setMessages);
+      }
+    } catch {
+      // Silently fail nudge
+      setMessages((prev) => prev.filter((m) => m.id !== assistantId));
+    } finally {
+      loadingRef.current = false;
+      setIsLoading(false);
+    }
+  }, [sessionId]);
+
+  const startIdleTimer = useCallback(() => {
+    clearIdleTimer();
+    if (nudgeCountRef.current >= MAX_NUDGES || sessionCompletedRef.current) return;
+
+    idleTimerRef.current = setTimeout(() => {
+      sendNudge();
+    }, IDLE_TIMEOUT_MS);
+  }, [clearIdleTimer, sendNudge]);
+
+  // Visibility change: pause/resume idle timer
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.hidden) {
+        clearIdleTimer();
+      } else if (!loadingRef.current && nudgeCountRef.current < MAX_NUDGES) {
+        startIdleTimer();
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      clearIdleTimer();
+    };
+  }, [clearIdleTimer, startIdleTimer]);
+
   const loadHistory = useCallback((history: ChatMessage[]) => {
     setMessages(history);
   }, []);
@@ -39,6 +124,9 @@ export function useChat(sessionId: string): UseChatReturn {
   const sendMessage = useCallback(
     async (content: string) => {
       if (!content.trim() || loadingRef.current) return;
+
+      // User activity: clear idle timer, reset nudge count
+      clearIdleTimer();
 
       const isAutoStart = content.trim() === "__START__";
 
@@ -93,6 +181,9 @@ export function useChat(sessionId: string): UseChatReturn {
             )
           );
         }
+
+        // Start idle timer after AI response completes
+        startIdleTimer();
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Something went wrong";
         setError(msg);
@@ -102,12 +193,15 @@ export function useChat(sessionId: string): UseChatReturn {
         setIsLoading(false);
       }
     },
-    [sessionId]
+    [sessionId, clearIdleTimer, startIdleTimer]
   );
 
   const submitCardInteraction = useCallback(
     async (cardId: string, cardType: string, value: unknown) => {
       if (loadingRef.current) return;
+
+      // User activity: clear idle timer
+      clearIdleTimer();
 
       const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
       const interactionMessage: ChatMessage = {
@@ -160,6 +254,9 @@ export function useChat(sessionId: string): UseChatReturn {
             )
           );
         }
+
+        // Start idle timer after AI response completes
+        startIdleTimer();
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Something went wrong";
         setError(msg);
@@ -169,7 +266,7 @@ export function useChat(sessionId: string): UseChatReturn {
         setIsLoading(false);
       }
     },
-    [sessionId]
+    [sessionId, clearIdleTimer, startIdleTimer]
   );
 
   return { messages, isLoading, error, sendMessage, loadHistory, submitCardInteraction };

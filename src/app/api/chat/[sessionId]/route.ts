@@ -8,9 +8,14 @@ export async function POST(
   try {
     const { sessionId } = await params;
     const body = await request.json();
-    const { message, isCardInteraction } = body;
+    const { message, isCardInteraction, isNudge } = body;
 
-    const stream = await handleMessage(sessionId, message, isCardInteraction === true);
+    const stream = await handleMessage(
+      sessionId,
+      message,
+      isCardInteraction === true,
+      isNudge === true,
+    );
 
     return new Response(stream, {
       headers: {

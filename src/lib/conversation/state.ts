@@ -1,128 +1,171 @@
-import type { SurveySchema, SurveySection, SurveyQuestion } from '@/lib/survey/types';
-import type { ConversationState, QuestionState } from '@/lib/conversation/types';
+import type { SurveySchema } from '@/lib/survey/types';
+import type {
+  ConversationState,
+  ThemeProgress,
+  LegacyConversationState,
+  ExtractedField,
+} from '@/lib/conversation/types';
 
-export function createInitialState(schema: SurveySchema): ConversationState {
+/**
+ * Compute targetRounds from schema: 60% of total questions, clamped to [8, 20].
+ */
+export function computeTargetRounds(schema: SurveySchema): number {
+  const totalQuestions = schema.metadata?.totalQuestions
+    ?? schema.sections.reduce((sum, s) => sum + s.questions.length, 0);
+  return Math.min(Math.max(Math.ceil(totalQuestions * 0.6), 8), 20);
+}
+
+/**
+ * Build initial ThemeProgress[] from schema sections.
+ */
+function buildThemesFromSchema(schema: SurveySchema): ThemeProgress[] {
+  return schema.sections.map((section) => ({
+    sectionId: section.id,
+    sectionTitle: section.title,
+    fieldsExtracted: 0,
+    totalFields: section.questions.length,
+    touched: false,
+  }));
+}
+
+/**
+ * Create initial conversation state for a new session.
+ */
+export function createInitialState(
+  schema: SurveySchema,
+  targetRounds?: number,
+  respondentInfo?: Record<string, unknown>,
+): ConversationState {
   const now = new Date().toISOString();
-  const questionStates: QuestionState[] = [];
-
-  for (const section of schema.sections) {
-    for (const question of section.questions) {
-      questionStates.push({
-        sectionId: section.id,
-        questionId: question.id,
-        status: 'pending',
-        followUpCount: 0,
-      });
-    }
-  }
-
   return {
-    currentSectionIndex: 0,
-    currentQuestionIndex: 0,
-    followUpDepth: 0,
-    questionStates,
-    respondentInfo: {},
+    roundCount: 0,
+    targetRounds: targetRounds ?? computeTargetRounds(schema),
+    stage: 'opening',
+    themesExplored: buildThemesFromSchema(schema),
+    currentTopicDepth: 0,
+    respondentInfo: respondentInfo ?? {},
     startedAt: now,
     lastActiveAt: now,
   };
 }
 
-export function getNextQuestion(
-  state: ConversationState,
-  schema: SurveySchema
-): { section: SurveySection; question: SurveyQuestion } | null {
-  // Walk sections and questions in order to find next pending or in_progress
-  for (let si = 0; si < schema.sections.length; si++) {
-    const section = schema.sections[si];
-    for (let qi = 0; qi < section.questions.length; qi++) {
-      const question = section.questions[qi];
-      const qs = state.questionStates.find(
-        (q) => q.sectionId === section.id && q.questionId === question.id
-      );
-      const status = qs?.status ?? 'pending';
-      if (status === 'pending' || status === 'in_progress') {
-        return { section, question };
-      }
-    }
-  }
-  return null;
+/**
+ * Detect conversation stage from round progress.
+ */
+function detectStage(roundCount: number, targetRounds: number): 'opening' | 'exploring' | 'closing' {
+  if (roundCount <= 1) return 'opening';
+  if (roundCount >= targetRounds - 3) return 'closing';
+  return 'exploring';
 }
 
-export function updateQuestionState(
-  state: ConversationState,
-  sectionId: string,
-  questionId: string,
-  status: 'answered' | 'skipped' | 'in_progress'
-): ConversationState {
-  const questionStates = state.questionStates.map((qs) => {
-    if (qs.sectionId === sectionId && qs.questionId === questionId) {
-      return { ...qs, status };
-    }
-    return qs;
+/**
+ * Recompute themesExplored from extractedData + schema.
+ */
+function recomputeThemes(
+  themes: ThemeProgress[],
+  extractedFields: ExtractedField[],
+): ThemeProgress[] {
+  return themes.map((theme) => {
+    const count = extractedFields.filter((f) => f.sectionId === theme.sectionId).length;
+    return {
+      ...theme,
+      fieldsExtracted: count,
+      touched: count > 0,
+    };
   });
+}
 
-  // Advance currentSectionIndex / currentQuestionIndex to the next pending/in_progress question
-  // by scanning the updated list in schema order (we don't have schema here, so use questionStates order)
-  let currentSectionIndex = state.currentSectionIndex;
-  let currentQuestionIndex = state.currentQuestionIndex;
-
-  if (status === 'answered' || status === 'skipped') {
-    // Find the first pending question after the current one in list order
-    const currentPos = questionStates.findIndex(
-      (qs) => qs.sectionId === sectionId && qs.questionId === questionId
-    );
-    let nextPendingPos = -1;
-    for (let i = currentPos + 1; i < questionStates.length; i++) {
-      if (questionStates[i].status === 'pending' || questionStates[i].status === 'in_progress') {
-        nextPendingPos = i;
-        break;
-      }
-    }
-
-    if (nextPendingPos !== -1) {
-      // Count section index by scanning unique sectionIds in order
-      const sectionIds: string[] = [];
-      for (const qs of questionStates) {
-        if (!sectionIds.includes(qs.sectionId)) {
-          sectionIds.push(qs.sectionId);
-        }
-      }
-      const nextSectionId = questionStates[nextPendingPos].sectionId;
-      const nextSectionIndex = sectionIds.indexOf(nextSectionId);
-      // Count question index within that section
-      const questionsInSection = questionStates.filter((qs) => qs.sectionId === nextSectionId);
-      const nextQuestionIndex = questionsInSection.findIndex(
-        (qs) => qs.questionId === questionStates[nextPendingPos].questionId
-      );
-      currentSectionIndex = nextSectionIndex >= 0 ? nextSectionIndex : currentSectionIndex;
-      currentQuestionIndex = nextQuestionIndex >= 0 ? nextQuestionIndex : currentQuestionIndex;
-    }
-  }
+/**
+ * Advance one round. Called server-side BEFORE each LLM call.
+ */
+export function advanceRound(
+  state: ConversationState,
+  extractedFields: ExtractedField[],
+): ConversationState {
+  const roundCount = state.roundCount + 1;
+  const stage = detectStage(roundCount, state.targetRounds);
+  const themesExplored = recomputeThemes(state.themesExplored, extractedFields);
 
   return {
     ...state,
-    questionStates,
-    currentSectionIndex,
-    currentQuestionIndex,
+    roundCount,
+    stage,
+    themesExplored,
     lastActiveAt: new Date().toISOString(),
   };
 }
 
-export function getProgress(state: ConversationState): {
-  completed: number;
-  total: number;
-  percentage: number;
-} {
-  const total = state.questionStates.length;
-  const completed = state.questionStates.filter(
-    (qs) => qs.status === 'answered' || qs.status === 'skipped'
-  ).length;
-  const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
-  return { completed, total, percentage };
+/**
+ * Check if conversation is complete.
+ */
+export function isComplete(state: ConversationState): boolean {
+  if (state.completionReason) return true;
+  if (state.roundCount >= state.targetRounds) return true;
+  return false;
 }
 
-export function isComplete(state: ConversationState): boolean {
-  return state.questionStates.every(
-    (qs) => qs.status === 'answered' || qs.status === 'skipped'
+/**
+ * Check if conversation should be force-completed (hard ceiling).
+ */
+export function shouldForceComplete(state: ConversationState): boolean {
+  return state.roundCount >= state.targetRounds + 3;
+}
+
+/**
+ * Get progress summary for display / context injection.
+ */
+export function getProgress(state: ConversationState): {
+  roundCount: number;
+  targetRounds: number;
+  stage: string;
+  themesTouched: number;
+  totalThemes: number;
+} {
+  const themesTouched = state.themesExplored.filter((t) => t.touched).length;
+  return {
+    roundCount: state.roundCount,
+    targetRounds: state.targetRounds,
+    stage: state.stage,
+    themesTouched,
+    totalThemes: state.themesExplored.length,
+  };
+}
+
+/**
+ * Migrate legacy questionStates-based state to the new round-based state.
+ */
+export function migrateFromLegacy(
+  raw: LegacyConversationState,
+  schema: SurveySchema,
+  messageCount: number,
+  extractedFields: ExtractedField[],
+): ConversationState {
+  const targetRounds = computeTargetRounds(schema);
+  // Estimate roundCount from message history (each round = 1 user + 1 assistant)
+  const roundCount = Math.floor(messageCount / 2);
+  const stage = detectStage(roundCount, targetRounds);
+  const themes = recomputeThemes(buildThemesFromSchema(schema), extractedFields);
+
+  return {
+    roundCount,
+    targetRounds,
+    stage,
+    themesExplored: themes,
+    currentTopicDepth: 0,
+    respondentInfo: raw.respondentInfo ?? {},
+    startedAt: raw.startedAt,
+    lastActiveAt: raw.lastActiveAt,
+  };
+}
+
+/**
+ * Detect whether a raw state object is legacy format.
+ */
+export function isLegacyState(raw: unknown): raw is LegacyConversationState {
+  return (
+    typeof raw === 'object' &&
+    raw !== null &&
+    'questionStates' in raw &&
+    Array.isArray((raw as LegacyConversationState).questionStates)
   );
 }

@@ -1,17 +1,43 @@
 # Agent Driven Survey
 
-基于 LLM 的对话式调研系统。用 AI 替代传统表单，通过自然对话完成用户调研。
+An LLM-powered **deep interview** platform. Instead of traditional form-based questionnaires, users have a natural 1-on-1 conversation with an AI interviewer who adapts in real-time — pursuing deep insights on 2-3 key pain points rather than mechanically covering 55 questions.
 
-## 特性
+> **Depth over breadth.** One deep pain point is worth more than 55 shallow checkbox answers.
 
-- **对话式调研**：用户与 AI 访谈官自然对话，而非填写表单
-- **两阶段 Agent 构建**：自动将问卷文本转化为结构化 schema + 访谈配置
-- **实时数据提取**：通过 tool_use 在对话中零成本提取结构化数据
-- **交互卡片**：NPS、评分、选择题等自动渲染为可交互 UI 组件
-- **Notion 同步**：调研数据 + 完整对话记录自动同步到 Notion 数据库
-- **多 Provider 支持**：Anthropic 直连 / 自定义代理 / OpenAI 兼容接口
+## Why This Exists
 
-## 架构
+Traditional surveys get surface-level answers. Deep interviews get real insights — but don't scale. This system bridges the gap: each respondent gets a warm, adaptive conversation that feels like chatting with a researcher friend, while the backend extracts structured data automatically.
+
+## How It Works
+
+```
+Admin creates questionnaire + context
+  → AI generates interview agent (Opus, two-stage)
+  → Publish survey link: /s/{surveyId}
+
+User opens link
+  → Warm welcome screen → Start conversation
+  → AI conducts natural deep interview (~15 rounds)
+  → Real-time structured data extraction (tool_use)
+  → Session auto-completes → Optional Notion sync
+```
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Theme-driven conversations** | AI sees exploration directions, not a question checklist |
+| **Modular prompt architecture** | 5 modules (guardrails / soul / strategy / themes / context) assembled per turn |
+| **Round-based state tracking** | Server-side round counter, no dependency on AI calling tools |
+| **Interactive cards** | NPS (0-10), star ratings, multiple choice, likert scales rendered inline |
+| **User info import** | Pre-load respondent data via URL: `/s/{id}?profile=<base64json>` |
+| **Idle nudge** | AI auto-follows up after 45s of silence (max 2 per session) |
+| **Security guardrails** | 3-layer defense: prompt rules + regex pre-check + strategy guidance |
+| **Prompt caching** | ~90% cost reduction via Anthropic cache |
+| **Notion integration** | Auto-sync structured data + conversation transcript on completion |
+| **New Chat** | One-click restart from header, no URL hacking needed |
+
+## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -22,32 +48,25 @@
                   ▼
 ┌─────────────────────────────────────────────────────────┐
 │              两阶段 Agent 构建 (Opus)                     │
-│                                                          │
-│  ┌──────────────────┐    ┌──────────────────────────┐   │
-│  │   Schema Agent    │ →  │     Config Agent          │   │
-│  │                   │    │                           │   │
-│  │ • sections        │    │ • 访谈官人设               │   │
-│  │ • questions       │    │ • 开场白/结束语            │   │
-│  │ • extractionFields│    │ • 交互卡片分配             │   │
-│  │ • followUpRules   │    │ • 行为规则                 │   │
-│  └──────────────────┘    └──────────────────────────┘   │
-└─────────────────┬───────────────────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────────────────────┐
-│              SurveyAgent（可发布）                        │
+│  Schema Agent → Config Agent                             │
+│  结构化问卷     人设 / 行为 / 交互卡片                    │
 └─────────────────┬───────────────────────────────────────┘
                   │
                   ▼
 ┌─────────────────────────────────────────────────────────┐
 │               对话引擎 (Sonnet)                          │
 │                                                          │
-│  System Prompt = 角色 + 规则 + 进度 + 已提取数据          │
+│  System Prompt = guardrails + soul + themes              │
+│                + strategy + context                      │
 │                                                          │
 │  Tools:                                                  │
 │    extract_data       → 实时提取结构化数据                │
-│    update_progress    → 更新问题完成状态                  │
+│    conclude_interview → AI 主动结束访谈                   │
 │    render_interactive → 渲染交互卡片 (NPS/评分/选择)      │
+│                                                          │
+│  State: round-based (roundCount / targetRounds / stage)  │
+│  Security: 3-layer (prompt + regex + strategy)           │
+│  Nudge: idle detection → auto follow-up                  │
 │                                                          │
 │  ┌─────────┐   SSE Stream   ┌─────────────────┐         │
 │  │   LLM   │ ─────────────→ │  前端实时渲染     │         │
@@ -67,155 +86,120 @@
 └─────────────────────────────────────────────────────────┘
 ```
 
-## 技术栈
+## Tech Stack
 
-| 层 | 技术 |
-|----|------|
-| 框架 | Next.js 15 (App Router) + TypeScript |
-| 数据库 | PostgreSQL + Drizzle ORM |
-| AI | Claude API (@anthropic-ai/sdk)，支持 OpenAI 兼容回退 |
-| 样式 | Tailwind CSS v4 |
-| 集成 | @notionhq/client (Notion API v5) |
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 15 (App Router) + TypeScript |
+| Database | PostgreSQL + Drizzle ORM |
+| AI | Claude API (@anthropic-ai/sdk), OpenAI-compatible fallback |
+| Styling | Tailwind CSS v4 |
+| Integration | @notionhq/client (Notion sync) |
 
-## 快速开始
-
-### 1. 安装依赖
+## Quick Start
 
 ```bash
+# Install dependencies
 npm install
-```
 
-### 2. 配置环境变量
-
-```bash
+# Configure environment
 cp .env.local.example .env.local
-```
+# Edit .env.local with DATABASE_URL, LLM_API_KEY, etc.
 
-编辑 `.env.local`：
-
-```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/agent_driven_survey
-LLM_PROVIDER=anthropic
-LLM_API_KEY=your-api-key
-NEXTAUTH_SECRET=your-secret
-NEXTAUTH_URL=http://localhost:3000
-
-# 可选：Notion 集成
-NOTION_API_TOKEN=your-notion-token
-```
-
-### 3. 初始化数据库
-
-```bash
+# Initialize database
 npm run db:push
-```
 
-### 4. 启动开发服务器
-
-```bash
+# Start dev server
 npm run dev
 ```
 
-访问 http://localhost:3000/admin 创建问卷。
+Visit http://localhost:3000/admin to create a survey.
 
-## 项目结构
+## Environment Variables
+
+```bash
+DATABASE_URL         # PostgreSQL connection string
+LLM_PROVIDER         # 'anthropic' | 'anthropic-messages' | 'openai-compatible'
+LLM_BASE_URL         # Custom LLM endpoint URL (for proxy/gateway)
+LLM_API_KEY          # LLM API key (overrides ANTHROPIC_API_KEY)
+LLM_MODEL            # Model identifier (default: claude-sonnet-4-6)
+NEXTAUTH_SECRET      # NextAuth secret
+NEXTAUTH_URL         # NextAuth app URL
+NOTION_API_TOKEN     # Notion API token (optional)
+```
+
+## Project Structure
 
 ```
 src/
-├── app/                  # Next.js 页面和 API 路由
-│   ├── admin/            # 管理后台
-│   ├── s/[surveyId]/     # 调研对话界面
-│   └── api/              # REST API
-│       ├── surveys/      # 问卷 CRUD + 发布 + Notion 集成
-│       ├── sessions/     # 会话管理
-│       └── chat/         # SSE 流式对话
+├── app/                    # Next.js pages and API routes
+│   ├── admin/              # Admin dashboard
+│   ├── s/[surveyId]/       # Survey conversation interface
+│   └── api/                # REST API endpoints
 ├── lib/
-│   ├── db/               # 数据库 schema + 连接
-│   ├── llm/              # LLM Provider 抽象层
-│   ├── survey/           # 问卷类型、schema 生成器、agent 构建器
-│   ├── conversation/     # 对话引擎、状态机、tools、交互卡片
-│   ├── notion/           # Notion 同步模块
-│   │   ├── client.ts     # SDK 单例 + 429 重试
-│   │   ├── schema-mapper.ts  # 提取字段 → Notion 列类型映射
-│   │   ├── database.ts   # 创建/确保 Notion 数据库
-│   │   ├── sync.ts       # 同步编排器
-│   │   └── markdown.ts   # 对话记录 → Notion blocks
-│   └── analysis/         # 分析报告（Phase 2）
-├── components/           # React UI 组件
-├── hooks/                # React hooks
-docs/
-└── survey-input-guide.md # 系统设计与输入最佳实践指南
+│   ├── db/                 # Drizzle schema, migrations, connection
+│   ├── llm/                # Provider abstraction (Anthropic + OpenAI-compatible)
+│   ├── survey/             # Types, manager, schema generator, agent builder
+│   ├── conversation/
+│   │   ├── prompts/        # Modular prompt system (5 modules)
+│   │   │   ├── guardrails.ts  # Security boundaries (highest priority)
+│   │   │   ├── soul.ts        # Agent persona & communication style
+│   │   │   ├── strategy.ts    # Interview methodology & pacing
+│   │   │   ├── themes.ts      # Schema → exploration directions
+│   │   │   └── context.ts     # Stage, progress, respondent info
+│   │   ├── prompt-builder.ts  # Assembler
+│   │   ├── engine.ts          # Conversation engine, SSE, tools, nudge
+│   │   ├── state.ts           # Round-based state + legacy migration
+│   │   ├── tools.ts           # LLM tool definitions
+│   │   └── skills.ts          # Interactive card definitions
+│   ├── notion/             # Notion integration
+│   └── analysis/           # Analysis reports (Phase 2)
+├── components/
+│   ├── admin/              # Admin UI
+│   └── chat/               # Chat UI: messages, cards, welcome, typing
+└── hooks/                  # React hooks (useChat with nudge)
 ```
 
-## API 端点
+## API Endpoints
 
-### 问卷管理
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/surveys` | 创建问卷 |
-| GET | `/api/surveys/[id]` | 获取问卷详情 |
-| POST | `/api/surveys/[id]/schema` | 生成结构化 schema |
-| POST | `/api/surveys/[id]/publish` | 发布问卷 |
-| GET | `/api/surveys/[id]/status` | 问卷状态 |
-| GET | `/api/surveys/[id]/responses` | 回复列表 |
-| GET | `/api/surveys/[id]/export` | 导出数据 |
+### Survey Management (Admin)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/surveys` | Create survey |
+| GET | `/api/surveys/[id]` | Survey details |
+| POST | `/api/surveys/[id]/schema` | Generate schema |
+| POST | `/api/surveys/[id]/publish` | Publish |
+| GET | `/api/surveys/[id]/responses` | Response list |
+| GET | `/api/surveys/[id]/export` | Export data |
 
-### Notion 集成
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| PUT | `/api/surveys/[id]/notion` | 配置 Notion 页面 |
-| POST | `/api/surveys/[id]/notion/sync` | 触发同步（支持增量） |
-| GET | `/api/surveys/[id]/notion/status` | 同步状态查询 |
+### Conversation (User)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/sessions` | Create session (accepts `respondentInfo`) |
+| GET | `/api/sessions/[id]` | Get session + history |
+| POST | `/api/chat/[sessionId]` | Send message (SSE, supports `isNudge`) |
 
-### 对话
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/sessions` | 创建对话会话 |
-| GET | `/api/sessions/[id]` | 获取会话详情 |
-| POST | `/api/chat/[sessionId]` | 发送消息（SSE 流式响应） |
+### Notion Integration
+| Method | Path | Description |
+|--------|------|-------------|
+| PUT | `/api/surveys/[id]/notion` | Configure Notion page |
+| POST | `/api/surveys/[id]/notion/sync` | Trigger sync |
+| GET | `/api/surveys/[id]/notion/status` | Sync status |
 
-## Notion 集成
+## Notion Integration
 
-### 配置步骤
+1. Create a Notion Integration and get token: `ntn tokens create survey-sync --plain`
+2. Add `NOTION_API_TOKEN=ntn_xxx` to `.env.local`
+3. Create a Notion page and add the Integration
+4. Configure via API: `PUT /api/surveys/{id}/notion` with `{"pageId": "...", "autoSync": true}`
 
-1. 创建 Notion Integration 并获取 token：
-   ```bash
-   ntn tokens create survey-sync --plain
-   ```
+Sessions auto-sync on completion when `autoSync` is enabled.
 
-2. 将 token 写入 `.env.local`：
-   ```env
-   NOTION_API_TOKEN=ntn_xxx
-   ```
+## Documentation
 
-3. 在 Notion 中创建一个页面，将 Integration 添加到该页面
-
-4. 通过 API 配置：
-   ```bash
-   curl -X PUT http://localhost:3000/api/surveys/{id}/notion \
-     -H 'Content-Type: application/json' \
-     -d '{"pageId": "your-page-id", "autoSync": true}'
-   ```
-
-### 同步内容
-
-- **数据库**：每个提取字段映射为一列，每个会话写入一行
-- **对话记录**：完整对话以引用块形式追加到每行数据的页面中
-- **自动同步**：开启 `autoSync` 后，会话完成时自动同步（不阻塞对话响应）
-
-### 字段映射
-
-| 提取字段类型 | Notion 列类型 |
-|-------------|--------------|
-| `string` | Rich Text |
-| `number` | Number |
-| `boolean` | Checkbox |
-| `string[]` | Multi Select |
-| `object` | Rich Text (JSON) |
-
-## 输入指南
-
-详见 [docs/survey-input-guide.md](docs/survey-input-guide.md) — 包含系统设计思路、最佳输入原则和完整示例。
+- [Architecture (EN)](docs/architecture.md) — Full system design
+- [Architecture (中文)](docs/architecture.zh-CN.md) — 完整系统架构
+- [Survey Input Guide](docs/survey-input-guide.md) — Questionnaire input best practices
 
 ## License
 

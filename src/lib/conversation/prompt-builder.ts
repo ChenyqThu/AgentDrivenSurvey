@@ -25,6 +25,7 @@ import { buildSoul } from './prompts/soul';
 import { buildStrategy } from './prompts/strategy';
 import { buildThemes } from './prompts/themes';
 import { buildContext } from './prompts/context';
+import { buildGuardrails } from './prompts/guardrails';
 
 interface BuildSystemPromptParams {
   survey: {
@@ -41,21 +42,19 @@ interface BuildSystemPromptParams {
     behavior?: AgentBehaviorConfig;
     interactiveSkills?: InteractiveSkillConfig[];
   };
-  /** Number of messages in conversation history (for stage detection) */
+  /** Number of messages in conversation history (for legacy compat, unused in new flow) */
   messageCount?: number;
 }
 
 export function buildSystemPrompt(params: BuildSystemPromptParams): string {
-  const { survey, state, agentConfig, messageCount = 0 } = params;
+  const { survey, state, agentConfig } = params;
   const { context, schema } = survey;
 
   const promptTemplate = agentConfig?.promptTemplate;
   const behavior = agentConfig?.behavior;
 
   const maxFollowUps = behavior?.maxFollowUpRounds ?? 2;
-  const totalQuestions = schema.metadata?.totalQuestions
-    ?? schema.sections.reduce((sum, s) => sum + s.questions.length, 0);
-  const targetRounds = Math.min(Math.max(Math.ceil(totalQuestions * 0.6), 8), 20);
+  const targetRounds = state.targetRounds;
 
   // --- Assemble modules ---
 
@@ -76,9 +75,10 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
 
   const dynamicContext = buildContext({
     state,
-    schema,
-    messageCount,
-    targetRounds,
+  });
+
+  const guardrails = buildGuardrails({
+    product: context.product,
   });
 
   // --- Per-survey overrides (from agent config) ---
@@ -109,7 +109,7 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
 
 - \`render_interactive\`：NPS 评分（0-10）和满意度评分（1-5 星）卡片
 - \`extract_data\`：可选，对话记录会完整保存，后续自动分析
-- \`update_progress\`：可选，标记某个方向已聊过
+- \`conclude_interview\`：对话自然结束时调用，标记访谈完成
 - 工具调用对用户不可见`;
 
   const startBlock = `# 开始
@@ -124,6 +124,7 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
   // --- Final assembly ---
 
   return [
+    guardrails,
     soul,
     themes,
     strategy,
