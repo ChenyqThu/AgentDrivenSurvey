@@ -137,9 +137,13 @@ export async function handleMessage(
 
   // 4. Build message history for the LLM
   //    For card interactions, format as a structured user message the LLM can understand
+  // Handle auto-start trigger — convert to a natural greeting for the LLM
+  const isAutoStart = userMessage.trim() === '__START__';
+  const effectiveMessage = isAutoStart ? '你好' : userMessage;
+
   const llmUserMessage = isCardInteraction
-    ? formatCardInteractionMessage(userMessage)
-    : userMessage;
+    ? formatCardInteractionMessage(effectiveMessage)
+    : effectiveMessage;
 
   const llmMessages = history.map((m) => ({
     role: m.role as 'user' | 'assistant',
@@ -170,156 +174,203 @@ export async function handleMessage(
     cacheTools: true,
   };
 
-  const stream = provider.stream({
-    model: DEFAULT_MODEL,
-    systemPrompt,
-    messages: llmMessages,
-    tools: interviewTools,
-    cacheConfig,
-  });
+  // Helper: process a single LLM stream, executing tools and emitting SSE events.
+  // Returns { text, hadToolCalls, state } so the caller can decide whether to continue.
+  async function processStream(
+    llmStream: AsyncIterable<StreamEvent>,
+    controller: ReadableStreamDefaultController<Uint8Array>,
+    currentState: ConversationState,
+  ): Promise<{ text: string; hadToolCalls: boolean; state: ConversationState }> {
+    let assistantText = '';
+    let hadToolCalls = false;
+    const toolBlocks: Record<number, { name: string; inputJson: string }> = {};
+
+    for await (const event of llmStream) {
+      if (event.type === 'tool_use_start') {
+        const idx = event.index ?? 0;
+        toolBlocks[idx] = { name: event.toolName ?? '', inputJson: '' };
+        hadToolCalls = true;
+      } else if (event.type === 'text_delta') {
+        if (event.text) {
+          assistantText += event.text;
+          controller.enqueue(encodeSSE({ type: 'text', content: event.text }));
+        }
+      } else if (event.type === 'tool_input_delta') {
+        const idx = event.index ?? 0;
+        if (toolBlocks[idx] && event.partialJson) {
+          toolBlocks[idx].inputJson += event.partialJson;
+        }
+      } else if (event.type === 'tool_use_end') {
+        const idx = event.index ?? 0;
+        const block = toolBlocks[idx];
+        if (block) {
+          let input: Record<string, unknown> = {};
+          try {
+            input = JSON.parse(block.inputJson || '{}');
+          } catch {
+            input = {};
+          }
+
+          if (block.name === 'extract_data') {
+            const sectionId = input.section_id as string;
+            const fieldKey = input.field_key as string;
+            const value = input.value;
+            const confidence = (input.confidence as number) ?? 0;
+
+            const [existing] = await db
+              .select({ id: extractedData.id })
+              .from(extractedData)
+              .where(
+                and(
+                  eq(extractedData.sessionId, sessionId),
+                  eq(extractedData.sectionId, sectionId),
+                  eq(extractedData.fieldKey, fieldKey)
+                )
+              )
+              .limit(1);
+
+            if (existing) {
+              await db
+                .update(extractedData)
+                .set({ fieldValue: value, confidence, sourceMessageId: savedUserMsg.id })
+                .where(eq(extractedData.id, existing.id));
+            } else {
+              await db.insert(extractedData).values({
+                sessionId,
+                surveyId: session.surveyId,
+                sectionId,
+                fieldKey,
+                fieldValue: value,
+                confidence,
+                sourceMessageId: savedUserMsg.id,
+              });
+            }
+          } else if (block.name === 'update_progress') {
+            const progressUpdate: ProgressUpdate = {
+              sectionId: input.section_id as string,
+              questionId: input.question_id as string,
+              status: input.status as 'answered' | 'skipped',
+            };
+
+            currentState = updateQuestionState(
+              currentState,
+              progressUpdate.sectionId,
+              progressUpdate.questionId,
+              progressUpdate.status
+            );
+
+            await db
+              .update(sessions)
+              .set({ state: currentState })
+              .where(eq(sessions.id, sessionId));
+          } else if (block.name === 'render_interactive') {
+            const cardId = `card_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+            const card = {
+              id: cardId,
+              type: input.card_type as string,
+              question: input.question as string,
+              options: (input.options as string[] | undefined) ?? [],
+              config: (input.config as Record<string, unknown> | undefined) ?? {},
+            };
+            controller.enqueue(encodeSSE({ type: 'interactive_card', card }));
+          }
+
+          delete toolBlocks[idx];
+        }
+      }
+      // message_end is handled by the caller
+    }
+
+    return { text: assistantText, hadToolCalls, state: currentState };
+  }
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
-      let assistantText = '';
       let currentState = state;
-
-      // Track tool use blocks by index
-      const toolBlocks: Record<number, { name: string; inputJson: string }> = {};
+      let allAssistantText = '';
+      const MAX_CONTINUATION_ROUNDS = 3;
 
       try {
-        for await (const event of stream as AsyncIterable<StreamEvent>) {
-          if (event.type === 'tool_use_start') {
-            const idx = event.index ?? 0;
-            toolBlocks[idx] = { name: event.toolName ?? '', inputJson: '' };
-          } else if (event.type === 'text_delta') {
-            if (event.text) {
-              assistantText += event.text;
-              controller.enqueue(encodeSSE({ type: 'text', content: event.text }));
-            }
-          } else if (event.type === 'tool_input_delta') {
-            const idx = event.index ?? 0;
-            if (toolBlocks[idx] && event.partialJson) {
-              toolBlocks[idx].inputJson += event.partialJson;
-            }
-          } else if (event.type === 'tool_use_end') {
-            const idx = event.index ?? 0;
-            const block = toolBlocks[idx];
-            if (block) {
-              let input: Record<string, unknown> = {};
-              try {
-                input = JSON.parse(block.inputJson || '{}');
-              } catch {
-                input = {};
-              }
+        // Initial LLM call
+        let currentMessages = [...llmMessages];
+        let round = 0;
 
-              if (block.name === 'extract_data') {
-                // Upsert to extracted_data table
-                const sectionId = input.section_id as string;
-                const fieldKey = input.field_key as string;
-                const value = input.value;
-                const confidence = (input.confidence as number) ?? 0;
+        while (round < MAX_CONTINUATION_ROUNDS) {
+          round++;
 
-                // Check if exists
-                const [existing] = await db
-                  .select({ id: extractedData.id })
-                  .from(extractedData)
-                  .where(
-                    and(
-                      eq(extractedData.sessionId, sessionId),
-                      eq(extractedData.sectionId, sectionId),
-                      eq(extractedData.fieldKey, fieldKey)
-                    )
-                  )
-                  .limit(1);
+          const llmStream = provider.stream({
+            model: DEFAULT_MODEL,
+            systemPrompt,
+            messages: currentMessages,
+            tools: interviewTools,
+            cacheConfig,
+          });
 
-                if (existing) {
-                  await db
-                    .update(extractedData)
-                    .set({ fieldValue: value, confidence, sourceMessageId: savedUserMsg.id })
-                    .where(eq(extractedData.id, existing.id));
-                } else {
-                  await db.insert(extractedData).values({
-                    sessionId,
-                    surveyId: session.surveyId,
-                    sectionId,
-                    fieldKey,
-                    fieldValue: value,
-                    confidence,
-                    sourceMessageId: savedUserMsg.id,
-                  });
-                }
-              } else if (block.name === 'update_progress') {
-                // Update session state
-                const progressUpdate: ProgressUpdate = {
-                  sectionId: input.section_id as string,
-                  questionId: input.question_id as string,
-                  status: input.status as 'answered' | 'skipped',
-                };
+          const result = await processStream(
+            llmStream as AsyncIterable<StreamEvent>,
+            controller,
+            currentState,
+          );
 
-                currentState = updateQuestionState(
-                  currentState,
-                  progressUpdate.sectionId,
-                  progressUpdate.questionId,
-                  progressUpdate.status
-                );
+          allAssistantText += result.text;
+          currentState = result.state;
 
-                await db
-                  .update(sessions)
-                  .set({ state: currentState })
-                  .where(eq(sessions.id, sessionId));
-              } else if (block.name === 'render_interactive') {
-                // Emit an interactive_card SSE event for the frontend to render
-                const cardId = `card_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-                const card = {
-                  id: cardId,
-                  type: input.card_type as string,
-                  question: input.question as string,
-                  options: (input.options as string[] | undefined) ?? [],
-                  config: (input.config as Record<string, unknown> | undefined) ?? {},
-                };
-                controller.enqueue(encodeSSE({ type: 'interactive_card', card }));
-              }
+          // If the LLM produced text, we're done — no continuation needed
+          if (result.text.trim()) {
+            break;
+          }
 
-              delete toolBlocks[idx];
-            }
-          } else if (event.type === 'message_end') {
-            // Save assistant message
-            await db.insert(messages).values({
-              sessionId,
-              role: 'assistant',
-              content: assistantText,
-              sequence: nextSeq + 1,
+          // If the LLM only called tools with no text, do a continuation call
+          // by appending a tool-results acknowledgment to prompt the LLM to continue
+          if (result.hadToolCalls && !result.text.trim()) {
+            currentMessages.push({
+              role: 'assistant' as const,
+              content: '[Tools executed: data extracted and progress updated successfully]',
             });
+            currentMessages.push({
+              role: 'user' as const,
+              content: '[System: Your tool calls have been processed. Now please respond to the user — acknowledge their answer naturally and continue to the next question. Always include a text response.]',
+            });
+            continue;
+          }
 
-            // Update last_active_at
-            await db
-              .update(sessions)
-              .set({ lastActiveAt: new Date() })
-              .where(eq(sessions.id, sessionId));
+          // No text and no tools — nothing more to do
+          break;
+        }
 
-            // Check if survey is complete and mark session
-            if (isComplete(currentState)) {
-              await db
-                .update(sessions)
-                .set({ status: 'completed', completedAt: new Date() })
-                .where(eq(sessions.id, sessionId));
+        // Save assistant message
+        await db.insert(messages).values({
+          sessionId,
+          role: 'assistant',
+          content: allAssistantText,
+          sequence: nextSeq + 1,
+        });
 
-              // Auto-sync to Notion if configured
-              if (settings.notionConfig?.autoSync) {
-                // Fire and forget — don't block SSE response
-                import('@/lib/notion/sync')
-                  .then(({ syncSession: notionSync }) =>
-                    notionSync(session.surveyId, sessionId)
-                  )
-                  .catch((err) =>
-                    console.error('Notion auto-sync failed:', err)
-                  );
-              }
-            }
+        // Update last_active_at
+        await db
+          .update(sessions)
+          .set({ lastActiveAt: new Date() })
+          .where(eq(sessions.id, sessionId));
 
-            controller.enqueue(encodeSSE({ type: 'done' }));
+        // Check if survey is complete and mark session
+        if (isComplete(currentState)) {
+          await db
+            .update(sessions)
+            .set({ status: 'completed', completedAt: new Date() })
+            .where(eq(sessions.id, sessionId));
+
+          if (settings.notionConfig?.autoSync) {
+            import('@/lib/notion/sync')
+              .then(({ syncSession: notionSync }) =>
+                notionSync(session.surveyId, sessionId)
+              )
+              .catch((err) =>
+                console.error('Notion auto-sync failed:', err)
+              );
           }
         }
+
+        controller.enqueue(encodeSSE({ type: 'done' }));
       } catch (err) {
         controller.error(err);
         return;

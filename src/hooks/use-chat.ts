@@ -37,14 +37,18 @@ export function useChat(sessionId: string): UseChatReturn {
     async (content: string) => {
       if (!content.trim() || isLoading) return;
 
-      const userMessage: ChatMessage = {
-        id: generateId(),
-        role: "user",
-        content: content.trim(),
-        createdAt: new Date().toISOString(),
-      };
+      const isAutoStart = content.trim() === "__START__";
 
-      setMessages((prev) => [...prev, userMessage]);
+      // Don't show __START__ as a user message bubble
+      if (!isAutoStart) {
+        const userMessage: ChatMessage = {
+          id: generateId(),
+          role: "user",
+          content: content.trim(),
+          createdAt: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, userMessage]);
+      }
       setIsLoading(true);
       setError(null);
 
@@ -99,11 +103,12 @@ export function useChat(sessionId: string): UseChatReturn {
 
   const submitCardInteraction = useCallback(
     async (cardId: string, cardType: string, value: unknown) => {
-      // Optimistically add a user message showing the interaction
+      // Show the actual selected value as the user message
+      const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
       const interactionMessage: ChatMessage = {
         id: generateId(),
         role: "user",
-        content: `[Card response submitted]`,
+        content: displayValue,
         createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, interactionMessage]);
