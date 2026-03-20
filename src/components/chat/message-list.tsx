@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { MarkdownHooks as ReactMarkdown } from "react-markdown";
+import { SimpleMarkdown } from "./simple-markdown";
 import type { ChatMessage } from "@/hooks/use-chat";
 import { InteractiveCard } from "./interactive-card";
 
@@ -68,51 +68,7 @@ function MessageBubble({
               isUser ? (
                 <p className="whitespace-pre-wrap break-words" dir="auto">{message.content}</p>
               ) : (
-                <div className="markdown-content break-words" dir="auto">
-                  <ReactMarkdown
-                    components={{
-                      p: ({ children }) => <p className="mb-2 last:mb-0 whitespace-pre-wrap">{children}</p>,
-                      strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                      em: ({ children }) => <em className="italic">{children}</em>,
-                      h1: ({ children }) => <h1 className="text-base font-bold mb-1 mt-2 first:mt-0">{children}</h1>,
-                      h2: ({ children }) => <h2 className="text-sm font-bold mb-1 mt-2 first:mt-0">{children}</h2>,
-                      h3: ({ children }) => <h3 className="text-sm font-semibold mb-1 mt-2 first:mt-0">{children}</h3>,
-                      ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-0.5 pl-1">{children}</ul>,
-                      ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5 pl-1">{children}</ol>,
-                      li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-                      code: ({ children, className }) => {
-                        const isBlock = className?.includes("language-");
-                        return isBlock ? (
-                          <code className="block bg-gray-100 dark:bg-gray-900 rounded px-3 py-2 text-xs font-mono my-2 overflow-x-auto whitespace-pre">
-                            {children}
-                          </code>
-                        ) : (
-                          <code className="bg-gray-100 dark:bg-gray-900 rounded px-1 py-0.5 text-xs font-mono">
-                            {children}
-                          </code>
-                        );
-                      },
-                      pre: ({ children }) => <pre className="my-2">{children}</pre>,
-                      a: ({ href, children }) => (
-                        <a
-                          href={href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
-                        >
-                          {children}
-                        </a>
-                      ),
-                      blockquote: ({ children }) => (
-                        <blockquote className="border-l-2 border-gray-300 dark:border-gray-600 pl-3 italic text-gray-600 dark:text-gray-400 my-2">
-                          {children}
-                        </blockquote>
-                      ),
-                    }}
-                  >
-                    {message.content}
-                  </ReactMarkdown>
-                </div>
+                <SimpleMarkdown content={message.content} className="break-words" />
               )
             ) : (
               <span className="opacity-50 italic text-xs">…</span>
