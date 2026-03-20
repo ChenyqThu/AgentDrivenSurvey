@@ -415,6 +415,9 @@ export async function handleMessage(
             }
           } else if (block.name === 'conclude_interview') {
             const reason = (input.reason as string) ?? 'ai_concluded';
+            const summary = (input.summary as string) ?? undefined;
+            const keyInsights = (input.key_insights as string[]) ?? undefined;
+
             currentState = {
               ...currentState,
               completionReason: 'ai_concluded',
@@ -422,8 +425,20 @@ export async function handleMessage(
 
             await db
               .update(sessions)
-              .set({ state: currentState, status: 'completed', completedAt: new Date() })
+              .set({
+                state: currentState,
+                status: 'completed',
+                completedAt: new Date(),
+              })
               .where(eq(sessions.id, sessionId));
+
+            // Emit session_completed event to frontend
+            controller.enqueue(encodeSSE({
+              type: 'session_completed',
+              reason,
+              summary,
+              keyInsights,
+            }));
 
             // Trigger Notion auto-sync if configured
             if (settings.notionConfig?.autoSync) {
@@ -436,7 +451,7 @@ export async function handleMessage(
                 );
             }
 
-            console.log(`[conclude_interview] session=${sessionId} reason="${reason}"`);
+            console.log(`[conclude_interview] session=${sessionId} reason="${reason}" summary="${summary ?? 'none'}"`);
           } else if (block.name === 'render_interactive') {
             const cardId = `card_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
             const card = {
@@ -529,6 +544,11 @@ export async function handleMessage(
             .update(sessions)
             .set({ state: currentState, status: 'completed', completedAt: new Date() })
             .where(eq(sessions.id, sessionId));
+
+          controller.enqueue(encodeSSE({
+            type: 'session_completed',
+            reason: 'rounds_reached',
+          }));
 
           if (settings.notionConfig?.autoSync) {
             import('@/lib/notion/sync')

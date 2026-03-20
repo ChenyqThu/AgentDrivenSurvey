@@ -27,7 +27,12 @@ function getStageGuidance(stage: Stage): string {
 
     case 'closing':
       return `**当前阶段：收尾**
-对话快结束了。如果还没收集 NPS 评分，现在用 render_interactive 工具发一张评分卡片。然后问一个开放性的改进建议，最后感谢并结束。对话自然结束时，调用 conclude_interview 工具。`;
+对话快结束了。按这个顺序收尾：
+1. 如果还没收集 NPS 评分，用 render_interactive 工具发一张评分卡片
+2. 问一个开放性的改进建议（"最后一个问题..."）
+3. 用 2-3 句话总结本次对话的核心发现，请用户确认——"我总结一下我们聊的，你看对不对：..."
+4. 感谢用户的时间和真诚分享
+5. 调用 conclude_interview 工具，附带 summary 和 key_insights（3-5 个关键发现）`;
   }
 }
 

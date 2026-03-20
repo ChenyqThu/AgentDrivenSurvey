@@ -109,17 +109,19 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
 
 - \`render_interactive\`：NPS 评分（0-10）和满意度评分（1-5 星）卡片
 - \`extract_data\`：可选，对话记录会完整保存，后续自动分析
-- \`conclude_interview\`：对话自然结束时调用，标记访谈完成
+- \`conclude_interview\`：对话自然结束时调用，必须提供 summary 和 key_insights
 - 工具调用对用户不可见`;
+
+  const hasRespondentInfo = state.respondentInfo && Object.keys(state.respondentInfo).length > 0;
 
   const startBlock = `# 开始
 
-第一条消息：
+第一条消息（你的自我介绍）：
 1. 简短介绍自己和目的（2-3 句）
 2. 提到可以换语言（If you'd like to chat in another language, just let me know!）
-3. 随时可以跳过或停止
-4. "准备好就发条消息，我们开始吧"
-5. 开场不问问题——等用户回复`;
+3. 随时可以跳过或停止${hasRespondentInfo ? '\n4. 自然地提及你已经了解一些对方的背景（参考"已知信息"段落），让用户感到被重视' : ''}
+5. "准备好就发条消息，我们开始吧"
+6. 开场不问问题——等用户回复`;
 
   // --- Final assembly ---
 

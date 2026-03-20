@@ -1,26 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChat, type ChatMessage } from "@/hooks/use-chat";
 import { MessageList } from "./message-list";
 import { MessageInput } from "./message-input";
-
-const WELCOME_MESSAGE: ChatMessage = {
-  id: "welcome",
-  role: "assistant",
-  content: [
-    "Hi there! I'm **Ann** from the Omada product team. 👋",
-    "",
-    "Thanks for joining this quick chat about your experience with the **Omada App**. It takes about 10–15 minutes — just an easy conversation, no right or wrong answers.",
-    "",
-    "Everything you share is confidential and only used to improve the product. Feel free to skip anything or stop at any time.",
-    "",
-    "🌍 Prefer another language? Just let me know — I can switch to Chinese, Japanese, or others anytime.",
-    "",
-    "**Send any message when you're ready, and we'll get started!**",
-  ].join("\n"),
-  createdAt: new Date().toISOString(),
-};
+import { CompletionCard } from "./completion-card";
 
 interface ChatContainerProps {
   sessionId: string;
@@ -38,8 +22,9 @@ export function ChatContainer({
   onRestart,
 }: ChatContainerProps) {
   const initializedRef = useRef(false);
-  const { messages, isLoading, error, sendMessage, loadHistory, submitCardInteraction } =
+  const { messages, isLoading, isCompleted, error, sendMessage, loadHistory, submitCardInteraction } =
     useChat(sessionId);
+  const [inputDisabled, setInputDisabled] = useState(false);
 
   useEffect(() => {
     if (initializedRef.current) return;
@@ -50,9 +35,14 @@ export function ChatContainer({
       return;
     }
 
-    // Show fixed welcome message immediately — no AI call needed
-    loadHistory([WELCOME_MESSAGE]);
-  }, [initialMessages, loadHistory]);
+    // No hardcoded welcome — let AI generate a personalized opening
+    sendMessage("__START__");
+  }, [initialMessages, loadHistory, sendMessage]);
+
+  // Disable input when session is completed
+  useEffect(() => {
+    if (isCompleted) setInputDisabled(true);
+  }, [isCompleted]);
 
   return (
     <div className="flex flex-col h-full">
@@ -105,8 +95,12 @@ export function ChatContainer({
         />
       </div>
 
-      {/* Input */}
-      <MessageInput onSend={sendMessage} disabled={isLoading} />
+      {/* Completion card or input */}
+      {isCompleted ? (
+        <CompletionCard onRestart={onRestart} />
+      ) : (
+        <MessageInput onSend={sendMessage} disabled={isLoading || inputDisabled} />
+      )}
     </div>
   );
 }

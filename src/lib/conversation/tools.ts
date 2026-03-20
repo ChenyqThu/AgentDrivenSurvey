@@ -33,7 +33,7 @@ export const interviewTools: ToolDefinition[] = [
   {
     name: 'conclude_interview',
     description:
-      'Call this when the interview has reached a natural conclusion — the user wants to stop, you have gathered enough insights, or the conversation has wound down. This marks the session as complete.',
+      'Call this when the interview has reached a natural conclusion — the user wants to stop, you have gathered enough insights, or the conversation has wound down. This marks the session as complete. Always call this AFTER delivering your closing message to the user.',
     input_schema: {
       type: 'object',
       properties: {
@@ -43,10 +43,15 @@ export const interviewTools: ToolDefinition[] = [
         },
         summary: {
           type: 'string',
-          description: 'Optional brief summary of key insights gathered during the interview.',
+          description: 'A 2-3 sentence summary of the conversation — what was discussed and the overall sentiment.',
+        },
+        key_insights: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'List of 3-5 key insights or pain points discovered during the interview. Each should be a concise, actionable finding.',
         },
       },
-      required: ['reason'],
+      required: ['reason', 'summary', 'key_insights'],
     },
   },
   renderInteractiveTool,

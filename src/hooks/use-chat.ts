@@ -14,6 +14,7 @@ export interface ChatMessage {
 interface UseChatReturn {
   messages: ChatMessage[];
   isLoading: boolean;
+  isCompleted: boolean;
   error: string | null;
   sendMessage: (content: string) => Promise<void>;
   loadHistory: (messages: ChatMessage[]) => void;
@@ -30,6 +31,7 @@ const MAX_NUDGES = 2;            // max 2 nudges per session
 export function useChat(sessionId: string): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Use ref for loading guard so sendMessage has stable identity
@@ -80,7 +82,7 @@ export function useChat(sessionId: string): UseChatReturn {
 
       const contentType = res.headers.get("content-type") ?? "";
       if (contentType.includes("text/event-stream")) {
-        await consumeSSE(res, assistantId, setMessages);
+        await consumeSSE(res, assistantId, setMessages, () => { setIsCompleted(true); sessionCompletedRef.current = true; clearIdleTimer(); });
       }
     } catch {
       // Silently fail nudge
@@ -167,7 +169,7 @@ export function useChat(sessionId: string): UseChatReturn {
         const contentType = res.headers.get("content-type") ?? "";
 
         if (contentType.includes("text/event-stream")) {
-          await consumeSSE(res, assistantId, setMessages);
+          await consumeSSE(res, assistantId, setMessages, () => { setIsCompleted(true); sessionCompletedRef.current = true; clearIdleTimer(); });
         } else {
           const data = await res.json();
           const text =
@@ -240,7 +242,7 @@ export function useChat(sessionId: string): UseChatReturn {
         const contentType = res.headers.get("content-type") ?? "";
 
         if (contentType.includes("text/event-stream")) {
-          await consumeSSE(res, assistantId, setMessages);
+          await consumeSSE(res, assistantId, setMessages, () => { setIsCompleted(true); sessionCompletedRef.current = true; clearIdleTimer(); });
         } else {
           const data = await res.json();
           const text =
@@ -269,7 +271,7 @@ export function useChat(sessionId: string): UseChatReturn {
     [sessionId, clearIdleTimer, startIdleTimer]
   );
 
-  return { messages, isLoading, error, sendMessage, loadHistory, submitCardInteraction };
+  return { messages, isLoading, isCompleted, error, sendMessage, loadHistory, submitCardInteraction };
 }
 
 // ─── SSE consumer ─────────────────────────────────────────────────────────────
@@ -277,7 +279,8 @@ export function useChat(sessionId: string): UseChatReturn {
 async function consumeSSE(
   res: Response,
   assistantId: string,
-  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+  onCompleted?: () => void,
 ) {
   const reader = res.body?.getReader();
   if (!reader) throw new Error("No response body");
@@ -301,6 +304,10 @@ async function consumeSSE(
 
       try {
         const event = JSON.parse(raw);
+
+        if (event.type === "session_completed") {
+          onCompleted?.();
+        }
 
         if (event.type === "done") {
           break;
