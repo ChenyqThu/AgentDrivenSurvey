@@ -34,12 +34,13 @@ export function ChatContainer({
   // Auto-trigger streaming AI greeting for new sessions
   useEffect(() => {
     if (!autoStart || autoTriggered.current) return;
-    autoTriggered.current = true;
-    // Small delay to ensure component is mounted
-    const timer = setTimeout(() => sendMessage("__START__"), 100);
+    const timer = setTimeout(() => {
+      if (autoTriggered.current) return; // double-check after delay
+      autoTriggered.current = true;
+      sendMessage("__START__");
+    }, 50);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoStart]);
+  }, [autoStart, sendMessage]);
 
   return (
     <div className="flex flex-col h-full">
