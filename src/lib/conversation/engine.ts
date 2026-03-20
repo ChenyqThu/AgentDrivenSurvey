@@ -137,7 +137,7 @@ export async function handleMessage(
 
   // 4. Build message history for the LLM
   //    For card interactions, format as a structured user message the LLM can understand
-  // Handle auto-start trigger — used to generate AI greeting without a real user message
+  // Handle auto-start trigger (legacy, kept for backward compat)
   const isAutoStart = userMessage.trim() === '__START__';
 
   const llmUserMessage = isAutoStart
@@ -146,11 +146,18 @@ export async function handleMessage(
       ? formatCardInteractionMessage(userMessage)
       : userMessage;
 
+  // If this is the user's first real message (no prior messages in history),
+  // prepend context so the AI knows the welcome was already shown
+  const isFirstRealMessage = !isAutoStart && !isCardInteraction && history.length === 0;
+  const contextualMessage = isFirstRealMessage
+    ? `[System context: The user has already seen a welcome message introducing you as Ann from the Omada team. They know this is a 10-15 min conversational survey about Omada App. They may have chosen a language preference. Now begin the actual interview based on their response below.]\n\nUser: ${llmUserMessage}`
+    : llmUserMessage;
+
   const llmMessages = history.map((m) => ({
     role: m.role as 'user' | 'assistant',
     content: m.content,
   }));
-  llmMessages.push({ role: 'user', content: llmUserMessage });
+  llmMessages.push({ role: 'user', content: contextualMessage });
 
   // 5. Save user message first (get next sequence number)
   //    For auto-start, don't save a fake user message to the DB
@@ -166,7 +173,7 @@ export async function handleMessage(
       .values({
         sessionId,
         role: 'user',
-        content: isCardInteraction ? formatCardInteractionMessage(userMessage) : userMessage,
+        content: llmUserMessage,
         sequence: nextSeq,
       })
       .returning({ id: messages.id });

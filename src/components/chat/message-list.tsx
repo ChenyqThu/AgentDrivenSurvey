@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import ReactMarkdown from "react-markdown";
+import { MarkdownHooks as ReactMarkdown } from "react-markdown";
 import type { ChatMessage } from "@/hooks/use-chat";
 import { InteractiveCard } from "./interactive-card";
 

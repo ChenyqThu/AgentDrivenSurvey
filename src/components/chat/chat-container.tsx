@@ -6,6 +6,23 @@ import { MessageList } from "./message-list";
 import { MessageInput } from "./message-input";
 import { TypingIndicator } from "./typing-indicator";
 
+const WELCOME_MESSAGE: ChatMessage = {
+  id: "welcome",
+  role: "assistant",
+  content: [
+    "Hi there! I'm **Ann** from the Omada product team. 👋",
+    "",
+    "Thanks for joining this quick chat about your experience with the **Omada App**. It takes about 10–15 minutes — just an easy conversation, no right or wrong answers.",
+    "",
+    "Everything you share is confidential and only used to improve the product. Feel free to skip anything or stop at any time.",
+    "",
+    "🌍 Prefer another language? Just let me know — I can switch to Chinese, Japanese, or others anytime.",
+    "",
+    "**Send any message when you're ready, and we'll get started!**",
+  ].join("\n"),
+  createdAt: new Date().toISOString(),
+};
+
 interface ChatContainerProps {
   sessionId: string;
   surveyTitle: string;
@@ -32,8 +49,9 @@ export function ChatContainer({
       return;
     }
 
-    void sendMessage("__START__");
-  }, [initialMessages, loadHistory, sendMessage]);
+    // Show fixed welcome message immediately — no AI call needed
+    loadHistory([WELCOME_MESSAGE]);
+  }, [initialMessages, loadHistory]);
 
   return (
     <div className="flex flex-col h-full">
@@ -41,7 +59,7 @@ export function ChatContainer({
       <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3">
         <div className="max-w-3xl mx-auto flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
-            A
+            O
           </div>
           <div className="min-w-0">
             <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight truncate">
