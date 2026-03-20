@@ -61,7 +61,10 @@ export default function SurveyPage({
       // Clean up old format key (without uid) if it exists
       const oldKey = `${SESSION_KEY_PREFIX}${surveyId}`;
       if (localStorage.getItem(oldKey)) localStorage.removeItem(oldKey);
-      const existingSessionId = localStorage.getItem(storageKey);
+
+      // ?new=1 forces a fresh session (for testing)
+      const forceNew = searchParams.get("new") === "1";
+      const existingSessionId = forceNew ? null : localStorage.getItem(storageKey);
 
       if (existingSessionId) {
         // Try to resume existing session
