@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, use } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChatContainer } from "@/components/chat/chat-container";
 import { WelcomeScreen } from "@/components/chat/welcome-screen";
+import { TypingIndicator } from "@/components/chat/typing-indicator";
 import type { ChatMessage } from "@/hooks/use-chat";
 
 interface SurveyInfo {
@@ -11,11 +12,6 @@ interface SurveyInfo {
   title: string;
   description?: string | null;
   status: string;
-}
-
-interface SessionInfo {
-  id: string;
-  messages?: ChatMessage[];
 }
 
 const SESSION_KEY_PREFIX = "survey_session_";
@@ -33,10 +29,10 @@ export default function SurveyPage({
   );
 
   const [survey, setSurvey] = useState<SurveyInfo | null>(null);
-  const [session, setSession] = useState<SessionInfo | null>(null);
-  const [started, setStarted] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
+  const [phase, setPhase] = useState<"loading" | "welcome" | "preparing" | "chat">("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [initializing, setInitializing] = useState(false);
 
   // Load survey info
   useEffect(() => {
@@ -46,6 +42,7 @@ export default function SurveyPage({
         if (!res.ok) throw new Error("Survey not found");
         const data: SurveyInfo = await res.json();
         setSurvey(data);
+        setPhase("welcome");
       } catch (err) {
         setLoadError(err instanceof Error ? err.message : "Failed to load survey");
       }
@@ -54,11 +51,10 @@ export default function SurveyPage({
   }, [surveyId]);
 
   async function handleStart() {
-    setInitializing(true);
+    setPhase("preparing");
     try {
-      // Include uid in storage key so different users get separate sessions
       const storageKey = `${SESSION_KEY_PREFIX}${surveyId}_${respondentId}`;
-      // Clean up old format key (without uid) if it exists
+      // Clean up old format key
       const oldKey = `${SESSION_KEY_PREFIX}${surveyId}`;
       if (localStorage.getItem(oldKey)) localStorage.removeItem(oldKey);
 
@@ -67,25 +63,26 @@ export default function SurveyPage({
       const existingSessionId = forceNew ? null : localStorage.getItem(storageKey);
 
       if (existingSessionId) {
-        // Try to resume existing session
         const res = await fetch(`/api/sessions/${existingSessionId}`);
         if (res.ok) {
           const data = await res.json();
-          const historyMessages: ChatMessage[] = (data.messages ?? []).map((m: { id: string; role: string; content: string; createdAt?: string }) => ({
-            id: m.id,
-            role: m.role as "user" | "assistant",
-            content: m.content,
-            createdAt: m.createdAt,
-          }));
-          setSession({ id: existingSessionId, messages: historyMessages });
-          setStarted(true);
+          const history: ChatMessage[] = (data.messages ?? []).map(
+            (m: { id: string; role: string; content: string; createdAt?: string }) => ({
+              id: m.id,
+              role: m.role as "user" | "assistant",
+              content: m.content,
+              createdAt: m.createdAt,
+            })
+          );
+          setSessionId(existingSessionId);
+          setInitialMessages(history);
+          setPhase("chat");
           return;
         }
-        // Session expired or invalid, remove it
         localStorage.removeItem(storageKey);
       }
 
-      // Create a new session
+      // Create new session
       const res = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -97,16 +94,17 @@ export default function SurveyPage({
         throw new Error(data.error ?? "Failed to start session");
       }
 
-      const data: SessionInfo = await res.json();
-      localStorage.setItem(storageKey, data.id);
+      const { id: newSessionId } = await res.json();
+      localStorage.setItem(storageKey, newSessionId);
+      setSessionId(newSessionId);
 
-      // Enter chat immediately — ChatContainer will trigger streaming greeting
-      setSession({ id: data.id, messages: [] });
-      setStarted(true);
+      // Fetch AI greeting directly — no useEffect, no race conditions
+      const greeting = await fetchGreeting(newSessionId);
+      setInitialMessages(greeting);
+      setPhase("chat");
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Failed to start survey");
-    } finally {
-      setInitializing(false);
+      setPhase("welcome");
     }
   }
 
@@ -115,16 +113,14 @@ export default function SurveyPage({
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <div className="text-center max-w-sm">
           <div className="text-4xl mb-4">⚠️</div>
-          <h1 className="text-lg font-semibold text-gray-900 mb-2">
-            Survey Unavailable
-          </h1>
+          <h1 className="text-lg font-semibold text-gray-900 mb-2">Survey Unavailable</h1>
           <p className="text-sm text-gray-500">{loadError}</p>
         </div>
       </div>
     );
   }
 
-  if (!survey) {
+  if (phase === "loading" || !survey) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex items-center gap-2 text-gray-400 text-sm">
@@ -140,45 +136,118 @@ export default function SurveyPage({
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <div className="text-center max-w-sm">
           <div className="text-4xl mb-4">🔒</div>
-          <h1 className="text-lg font-semibold text-gray-900 mb-2">
-            Survey Not Available
-          </h1>
+          <h1 className="text-lg font-semibold text-gray-900 mb-2">Survey Not Available</h1>
           <p className="text-sm text-gray-500">
-            This survey is currently{" "}
-            <span className="font-medium">{survey.status}</span>.
+            This survey is currently <span className="font-medium">{survey.status}</span>.
           </p>
         </div>
       </div>
     );
   }
 
+  if (phase === "welcome") {
+    return (
+      <div className="flex flex-col h-screen bg-gray-50">
+        <WelcomeScreen
+          title={survey.title}
+          description={survey.description}
+          onStart={handleStart}
+        />
+      </div>
+    );
+  }
+
+  if (phase === "preparing") {
+    return (
+      <div className="flex flex-col h-screen bg-gray-50">
+        {/* Same header as ChatContainer */}
+        <div className="flex-shrink-0 border-b border-gray-200 bg-white px-4 py-3">
+          <div className="max-w-3xl mx-auto flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white">
+              A
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 text-sm leading-tight">
+                {survey.title}
+              </p>
+            </div>
+          </div>
+        </div>
+        {/* Typing indicator in the message area */}
+        <div className="flex-1 flex flex-col max-w-3xl w-full mx-auto pt-6">
+          <TypingIndicator />
+        </div>
+      </div>
+    );
+  }
+
+  // phase === "chat"
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      {!started || !session ? (
-        <div className="flex flex-col flex-1">
-          <WelcomeScreen
-            title={survey.title}
-            description={survey.description}
-            onStart={handleStart}
-          />
-          {initializing && (
-            <div className="text-center pb-6 text-sm text-gray-400 flex items-center justify-center gap-2">
-              <SpinnerIcon className="w-4 h-4 animate-spin" />
-              正在准备调研…
-            </div>
-          )}
-        </div>
-      ) : (
-        <ChatContainer
-          sessionId={session.id}
-          surveyTitle={survey.title}
-          surveyDescription={survey.description}
-          initialMessages={session.messages}
-          autoStart={session.messages?.length === 0}
-        />
-      )}
+      <ChatContainer
+        sessionId={sessionId!}
+        surveyTitle={survey.title}
+        surveyDescription={survey.description}
+        initialMessages={initialMessages}
+      />
     </div>
   );
+}
+
+// Fetch AI greeting by calling the chat API and parsing the SSE response
+async function fetchGreeting(sessionId: string): Promise<ChatMessage[]> {
+  const res = await fetch(`/api/chat/${sessionId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: "__START__" }),
+  });
+
+  if (!res.ok || !res.body) return [];
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let text = "";
+  const cards: Array<{
+    id: string;
+    type: string;
+    question: string;
+    options?: string[];
+    config?: Record<string, unknown>;
+  }> = [];
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const raw = line.slice(6).trim();
+      if (!raw || raw === "[DONE]") continue;
+      try {
+        const event = JSON.parse(raw);
+        if (event.type === "text" && event.content) text += event.content;
+        if (event.type === "interactive_card" && event.card) cards.push(event.card);
+      } catch {
+        /* skip */
+      }
+    }
+  }
+
+  if (!text && cards.length === 0) return [];
+
+  return [
+    {
+      id: `greeting_${Date.now()}`,
+      role: "assistant" as const,
+      content: text,
+      cards: cards.length > 0 ? cards : undefined,
+      createdAt: new Date().toISOString(),
+    },
+  ];
 }
 
 function generateRespondentId(): string {
@@ -187,7 +256,12 @@ function generateRespondentId(): string {
 
 function SpinnerIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
     </svg>

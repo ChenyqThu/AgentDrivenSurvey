@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useChat, type ChatMessage } from "@/hooks/use-chat";
 import { MessageList } from "./message-list";
 import { MessageInput } from "./message-input";
@@ -11,7 +11,6 @@ interface ChatContainerProps {
   surveyTitle: string;
   surveyDescription?: string | null;
   initialMessages?: ChatMessage[];
-  autoStart?: boolean;
 }
 
 export function ChatContainer({
@@ -19,28 +18,15 @@ export function ChatContainer({
   surveyTitle,
   surveyDescription,
   initialMessages,
-  autoStart,
 }: ChatContainerProps) {
   const { messages, isLoading, error, sendMessage, loadHistory, submitCardInteraction } =
     useChat(sessionId);
-  const autoTriggered = useRef(false);
 
   useEffect(() => {
     if (initialMessages && initialMessages.length > 0) {
       loadHistory(initialMessages);
     }
   }, [initialMessages, loadHistory]);
-
-  // Auto-trigger streaming AI greeting for new sessions
-  useEffect(() => {
-    if (!autoStart || autoTriggered.current) return;
-    const timer = setTimeout(() => {
-      if (autoTriggered.current) return; // double-check after delay
-      autoTriggered.current = true;
-      sendMessage("__START__");
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [autoStart, sendMessage]);
 
   return (
     <div className="flex flex-col h-full">
