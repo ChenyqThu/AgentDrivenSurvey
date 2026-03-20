@@ -7,7 +7,6 @@ import type {
   InteractiveSkillConfig,
 } from '@/lib/survey/types';
 import type { ConversationState, ExtractedField } from '@/lib/conversation/types';
-import { getProgress } from '@/lib/conversation/state';
 
 interface BuildSystemPromptParams {
   survey: {
@@ -27,259 +26,140 @@ interface BuildSystemPromptParams {
   };
 }
 
-function getConversationStage(
-  state: ConversationState
-): 'opening' | 'middle' | 'closing' {
-  const total = state.questionStates.length;
-  if (total === 0) return 'opening';
-  const answered = state.questionStates.filter(
-    (qs) => qs.status === 'answered' || qs.status === 'skipped'
-  ).length;
-  const ratio = answered / total;
-  if (ratio === 0) return 'opening';
-  if (ratio >= 0.85) return 'closing';
-  return 'middle';
-}
-
-function formatExtractedData(extractedData: ExtractedField[]): string {
-  if (extractedData.length === 0) return '  (none yet)';
-  const lines: string[] = [];
-  for (const field of extractedData) {
-    lines.push(
-      `  [${field.sectionId}] ${field.fieldKey}: ${JSON.stringify(field.value)} (confidence: ${field.confidence.toFixed(2)})`
-    );
-  }
-  return lines.join('\n');
-}
-
-function formatSurveyStructure(
-  schema: SurveySchema,
-  state: ConversationState
-): string {
+function formatQuestionBank(schema: SurveySchema): string {
   const lines: string[] = [];
   for (const section of schema.sections) {
-    lines.push(`Section: ${section.title}`);
+    lines.push(`### ${section.title}`);
     if (section.description) {
-      lines.push(`  Description: ${section.description}`);
+      lines.push(`${section.description}`);
     }
     for (const question of section.questions) {
-      const qs = state.questionStates.find(
-        (q) => q.sectionId === section.id && q.questionId === question.id
-      );
-      const status = qs?.status ?? 'pending';
-      const marker =
-        status === 'answered'
-          ? '[✓]'
-          : status === 'skipped'
-          ? '[~]'
-          : status === 'in_progress'
-          ? '[→]'
-          : '[ ]';
-      lines.push(`  ${marker} [${question.id}] ${question.text} (${question.type})`);
-      if (question.required) {
-        lines.push(`       Required: yes`);
+      lines.push(`- ${question.text}`);
+      if (question.followUpRules && question.followUpRules.length > 0) {
+        for (const rule of question.followUpRules) {
+          lines.push(`  → 如果${rule.condition}，深入追问：${rule.question}`);
+        }
       }
     }
+    lines.push('');
   }
-  return lines.join('\n');
-}
-
-function getActiveQuestionDetails(
-  schema: SurveySchema,
-  state: ConversationState
-): string {
-  // Find active (in_progress) question first, then first pending
-  let activeSectionId: string | null = null;
-  let activeQuestionId: string | null = null;
-
-  for (const qs of state.questionStates) {
-    if (qs.status === 'in_progress') {
-      activeSectionId = qs.sectionId;
-      activeQuestionId = qs.questionId;
-      break;
-    }
-  }
-
-  if (!activeSectionId) {
-    for (const qs of state.questionStates) {
-      if (qs.status === 'pending') {
-        activeSectionId = qs.sectionId;
-        activeQuestionId = qs.questionId;
-        break;
-      }
-    }
-  }
-
-  if (!activeSectionId || !activeQuestionId) {
-    return '  All questions have been addressed.';
-  }
-
-  const section = schema.sections.find((s) => s.id === activeSectionId);
-  if (!section) return '  (section not found)';
-  const question = section.questions.find((q) => q.id === activeQuestionId);
-  if (!question) return '  (question not found)';
-
-  const lines: string[] = [
-    `Section: ${section.title}`,
-    `Question ID: ${question.id}`,
-    `Question: ${question.text}`,
-    `Type: ${question.type}`,
-    `Required: ${question.required ? 'yes' : 'no'}`,
-  ];
-
-  if (question.extractionFields.length > 0) {
-    lines.push('Fields to extract:');
-    for (const field of question.extractionFields) {
-      lines.push(`  - ${field.key} (${field.type}): ${field.description}`);
-    }
-  }
-
-  if (question.followUpRules.length > 0) {
-    lines.push('Follow-up rules:');
-    for (const rule of question.followUpRules) {
-      lines.push(
-        `  - If "${rule.condition}" → ask: "${rule.question}" (max ${rule.maxDepth} rounds)`
-      );
-    }
-  }
-
-  const qs = state.questionStates.find(
-    (q) => q.sectionId === activeSectionId && q.questionId === activeQuestionId
-  );
-  if (qs && qs.followUpCount > 0) {
-    lines.push(`Follow-up rounds used: ${qs.followUpCount}`);
-  }
-
   return lines.join('\n');
 }
 
 export function buildSystemPrompt(params: BuildSystemPromptParams): string {
-  const { survey, state, extractedData, agentConfig } = params;
+  const { survey, agentConfig } = params;
   const { context, settings, schema } = survey;
-  const progress = getProgress(state);
-  const stage = getConversationStage(state);
-  const language = settings.language || schema.metadata.language || 'en';
 
   const promptTemplate = agentConfig?.promptTemplate;
   const behavior = agentConfig?.behavior;
-  const interactiveSkills = agentConfig?.interactiveSkills;
-
-  const maxFollowUps = behavior?.maxFollowUpRounds ?? 2;
-  const transitionStyle = behavior?.transitionStyle === 'direct'
-    ? 'Transition directly between sections without lengthy acknowledgments.'
-    : 'Transition smoothly between sections — briefly acknowledge the shift before moving on.';
-
-  const stageGuidance: Record<string, string> = {
-    opening: promptTemplate?.openingMessage
-      ? `OPENING STAGE: Use this greeting as inspiration (adapt naturally): "${promptTemplate.openingMessage}"`
-      : 'OPENING STAGE: Introduce yourself briefly, thank the participant for their time, and ease into the first question with a warm, inviting tone.',
-    middle:
-      'MIDDLE STAGE: You are in the core of the interview. Maintain momentum, follow up naturally where appropriate, and transition smoothly between sections.',
-    closing: promptTemplate?.closingMessage
-      ? `CLOSING STAGE: Use this closing as inspiration (adapt naturally): "${promptTemplate.closingMessage}"`
-      : 'CLOSING STAGE: Most questions have been addressed. Begin wrapping up the conversation. Summarize key themes if helpful, thank the participant sincerely, and end warmly.',
-  };
 
   const toneDesc: Record<string, string> = {
-    formal: 'professional and formal',
-    casual: 'friendly and casual',
-    neutral: 'warm but professional',
+    formal: '专业、正式',
+    casual: '轻松、友好',
+    neutral: '温和、专业',
   };
+  const tone = toneDesc[settings.tone] ?? '温和、专业';
 
-  const tone = toneDesc[settings.tone] ?? 'warm but professional';
+  const persona = promptTemplate?.roleDescription
+    ?? `你是一位经验丰富的用户研究员，正在对 ${context.product} 的用户进行深度访谈。`;
 
-  const sections: string[] = [];
+  const openingHint = promptTemplate?.openingMessage
+    ? `开场参考（自然演绎，不要照搬）：${promptTemplate.openingMessage}`
+    : '';
 
-  // 1. Role definition (use agent-generated role if available)
-  const roleDesc = promptTemplate?.roleDescription
-    ?? `You are conducting a research interview about ${context.product}. Your goal is to naturally gather insights through conversation. Be ${tone}.`;
-  sections.push(`# Role\n${roleDesc}`);
+  const closingHint = promptTemplate?.closingMessage
+    ? `收尾参考（自然演绎）：${promptTemplate.closingMessage}`
+    : '';
 
-  // 2. Behavior rules
-  const behaviorRules = [
-    '- Ask ONE question at a time. Never ask multiple questions in a single turn.',
-    `- Follow up naturally when the answer warrants it (maximum ${maxFollowUps} follow-up rounds per question).`,
-    behavior?.detectImpatience !== false
-      ? '- If the user seems impatient, disengaged, or short, move on to the next question gracefully.'
-      : null,
-    `- ${transitionStyle}`,
-    '- Do not repeat questions that have already been answered (see extracted data below).',
-    '- Keep responses concise and conversational.',
-    behavior?.allowSkipping !== false
-      ? '- If the user wants to skip a question, allow it gracefully.'
-      : null,
-    behavior?.adaptiveDepth
-      ? '- Adjust follow-up depth based on response quality: go deeper on rich answers, move on faster with brief ones.'
-      : null,
-    `- Language: respond in ${language}.`,
-  ].filter(Boolean);
+  const customRules = promptTemplate?.customRules && promptTemplate.customRules.length > 0
+    ? promptTemplate.customRules.map((r) => `- ${r}`).join('\n')
+    : '';
 
-  // Add agent-generated custom rules
-  if (promptTemplate?.customRules && promptTemplate.customRules.length > 0) {
-    for (const rule of promptTemplate.customRules) {
-      behaviorRules.push(`- ${rule}`);
-    }
-  }
+  const maxFollowUps = behavior?.maxFollowUpRounds ?? 2;
 
-  sections.push(`# Behavior Rules\n${behaviorRules.join('\n')}`);
+  const questionBank = formatQuestionBank(schema);
 
-  // 3. Survey context
-  sections.push(
-    `# Survey Context
-Product: ${context.product}
-Target Users: ${context.targetUsers}
-Focus Areas: ${context.focusAreas.join(', ')}${context.additionalContext ? `\nAdditional Context: ${context.additionalContext}` : ''}`
-  );
+  const additionalContext = context.additionalContext
+    ? `\n补充背景：${context.additionalContext}`
+    : '';
 
-  // 4. Survey structure with progress markers
-  sections.push(
-    `# Survey Structure (${progress.completed}/${progress.total} questions complete — ${progress.percentage}%)
-Legend: [✓] answered  [~] skipped  [→] in progress  [ ] pending
+  return `# 角色定位
 
-${formatSurveyStructure(schema, state)}`
-  );
+${persona}
 
-  // 5. Active question details
-  sections.push(
-    `# Currently Active Question
-${getActiveQuestionDetails(schema, state)}`
-  );
+你的风格：${tone}。你不是在填问卷，而是在做一次真实的用户访谈。整个过程应该像一场自然的对话——你真诚好奇，用户感到被倾听。
 
-  // 6. Already extracted data
-  sections.push(
-    `# Already Extracted Data (do not re-ask for these)
-${formatExtractedData(extractedData)}`
-  );
+---
 
-  // 7. Tool use instructions (enhanced with interactive card guidance)
-  const toolInstructions = [
-    '- Use the `extract_data` tool whenever you identify a relevant data point in the user\'s response, even mid-conversation.',
-    '- Use the `update_progress` tool when you have finished with a question (answered or skipped) and are ready to move to the next one.',
-    '- You may call tools silently — the user does not see tool calls, only your text responses.',
-    '- Always call `update_progress` before moving on so the survey state stays accurate.',
-  ];
+# 产品背景
 
-  // Add interactive card instructions if skills are configured
-  if (interactiveSkills && interactiveSkills.length > 0) {
-    toolInstructions.push(
-      '- Use the `render_interactive` tool to show interactive cards for structured input (ratings, NPS, choices).',
-      '- When a question has an associated interactive skill, prefer using the card over asking as plain text.',
-      '- After the user interacts with a card, their response will be sent as a structured message. Acknowledge it naturally and continue.'
-    );
+产品：${context.product}
+目标用户：${context.targetUsers}
+研究重点：${context.focusAreas.join('、')}${additionalContext}
 
-    // List which questions have interactive skills
-    const skillMap = interactiveSkills.map(
-      (s) => `  ${s.questionId}: ${s.cardType} card`
-    );
-    toolInstructions.push(
-      `- Questions with interactive cards:\n${skillMap.join('\n')}`
-    );
-  }
+---
 
-  sections.push(`# Tool Use Instructions\n${toolInstructions.join('\n')}`);
+# 对话原则
 
-  // 8. Conversation stage guidance
-  sections.push(`# Conversation Stage\n${stageGuidance[stage]}`);
+**语言适应**：根据用户第一条消息自动判断语言（中文/英文/其他），之后全程使用该语言。
 
-  return sections.join('\n\n');
+**自然对话，不是问卷**：
+- 不要按顺序逐条提问，不要提"第X题"或"接下来问您..."
+- 根据用户回答自然引出下一个话题，用过渡句衔接
+- 允许话题之间有来回，不必强制线性推进
+- 对用户说的内容表示真实反应（"这很有意思""这个挺常见的"）
+
+**深度追问**：
+- 当用户提到痛点、亮点或有趣的细节时，优先深挖，不要急着换话题
+- 每个核心话题最多追问 ${maxFollowUps} 轮，避免过度追问
+- 用户回答简短或明显想略过时，顺势转移，不要纠缠
+
+**节奏把控与进度管理**：
+- 目标覆盖以下问题库中的核心维度，但不必逐一问完
+- 访谈总时长约 15-20 分钟，感知到对话接近尾声时主动收尾
+- 不要让对话拖沓——覆盖了核心内容后，感谢并结束
+- **主动告知进度**：当对话进行到中段或用户似乎想了解还要多久时，自然地告诉用户大致进度，如"我们已经聊了大概一半了，还有几个方面想请教您"或"差不多快结束了，最后再聊两个话题"
+- **动态调整深度**：如果对话已经较长（超过 10 轮交互），开始精简剩余问题，优先覆盖还未涉及的核心维度，跳过次要细节
+
+**情绪感知与主动适应**：
+- 时刻关注用户的情绪信号：简短回答、语气急促、直接说"快点"/"差不多了"等
+- 一旦感知到不耐烦，立刻：(1) 承认用户的时间宝贵 (2) 告知剩余内容很少 (3) 压缩后续问题或直接跳到最重要的未覆盖话题
+- 用户表现积极时（详细描述、主动分享故事），适当多追问，这些高质量回答非常有价值
+- 始终保持"用户体验优先"——调研本身的体验也是产品体验的延伸，让用户觉得被尊重
+
+**主动引导能力**：
+- 不要等用户问，主动在关键节点提供信息：
+  - 开场后简要说明将聊哪几个方面（但不要机械列清单）
+  - 切换大话题时用自然过渡，如"刚才聊了性能方面的体验，我也很想知道您在操作便捷性上的感受～"
+  - 即将结束时预告"就快结束了"，避免用户不确定还要多久
+
+**互动卡片使用规则（重要）**：
+- **仅在以下两种情况**使用 \`render_interactive\` 工具：
+  1. NPS 推荐度评分（0-10）
+  2. 满意度评分（1-5星）
+- 其他所有问题一律以文字对话方式提问，不使用卡片
+- 使用卡片后，收到用户结构化回复时，自然地回应并继续对话
+
+${openingHint ? `**开场提示**：${openingHint}\n` : ''}${closingHint ? `**收尾提示**：${closingHint}\n` : ''}${customRules ? `\n**额外规则**：\n${customRules}\n` : ''}
+---
+
+# 问题参考库
+
+以下是需要覆盖的研究维度和参考问题。**这是参考，不是脚本**。你可以用自己的方式自然引出这些话题，顺序可以调整，措辞应该随机应变。
+
+${questionBank}
+---
+
+# 工具使用说明
+
+- \`render_interactive\`：仅用于 NPS（0-10）和满意度评分（1-5），其他问题不用
+- \`extract_data\`：当用户提供明确的数据点时可选调用，但不必每次都调用——分析将在会话结束后进行
+- \`update_progress\`：当一个话题已充分探讨并准备转移时可调用，但不影响对话本身
+- 工具调用对用户不可见，调用后继续自然对话
+
+---
+
+# 开始访谈
+
+现在开始。根据 promptTemplate 或产品背景，以自然、热情的方式开场，简短介绍本次访谈的目的，然后用一个开放性问题引导用户开口。不要列清单，不要说"我们将讨论X个方面"。`;
 }

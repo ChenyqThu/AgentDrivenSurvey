@@ -92,7 +92,7 @@ function NPSCard({ card, onSubmit, disabled }: InteractiveCardProps) {
       </div>
       {submitted && (
         <p className="mt-3 text-xs text-center text-gray-500">
-          You selected <span className="font-semibold text-gray-700">{selected}</span>
+          已选择 <span className="font-semibold text-gray-700">{selected}</span>
         </p>
       )}
     </CardWrapper>
@@ -141,7 +141,7 @@ function RatingCard({ card, onSubmit, disabled }: InteractiveCardProps) {
       </div>
       {submitted && (
         <p className="mt-3 text-xs text-center text-gray-500">
-          You rated <span className="font-semibold text-gray-700">{selected} / {maxStars}</span>
+          已评分 <span className="font-semibold text-gray-700">{selected} / {maxStars}</span>
         </p>
       )}
     </CardWrapper>
@@ -220,7 +220,7 @@ function MultiSelectCard({ card, onSubmit, disabled }: InteractiveCardProps) {
       <p className="text-sm font-semibold text-gray-800 mb-1">{card.question}</p>
       {!submitted && (
         <p className="text-xs text-gray-400 mb-3">
-          Select {minSelect === maxSelect ? minSelect : `${minSelect}–${maxSelect}`} option{maxSelect !== 1 ? "s" : ""}
+          选择 {minSelect === maxSelect ? minSelect : `${minSelect}–${maxSelect}`} 项
         </p>
       )}
       <div className="flex flex-col gap-2">
@@ -263,7 +263,7 @@ function MultiSelectCard({ card, onSubmit, disabled }: InteractiveCardProps) {
           disabled={selected.size < minSelect}
           className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          Confirm
+          确认
         </button>
       )}
     </CardWrapper>
@@ -384,7 +384,7 @@ function LikertCard({ card, onSubmit, disabled }: InteractiveCardProps) {
       </div>
       {submitted && selected !== null && (
         <p className="mt-3 text-xs text-center text-gray-500">
-          You selected <span className="font-semibold text-gray-700">{labels[selected]}</span>
+          已选择 <span className="font-semibold text-gray-700">{labels[selected]}</span>
         </p>
       )}
     </CardWrapper>
@@ -444,12 +444,12 @@ function SliderCard({ card, onSubmit, disabled }: InteractiveCardProps) {
           onClick={handleSubmit}
           className="mt-4 w-full py-2.5 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors"
         >
-          Confirm
+          确认
         </button>
       )}
       {submitted && (
         <p className="mt-3 text-xs text-center text-gray-500">
-          You selected <span className="font-semibold text-gray-700">{value}{unit}</span>
+          已选择 <span className="font-semibold text-gray-700">{value}{unit}</span>
         </p>
       )}
     </CardWrapper>
@@ -467,6 +467,7 @@ function CardWrapper({
 }) {
   return (
     <div
+      dir="auto"
       className={`mt-2 rounded-2xl border px-5 py-4 max-w-sm w-full transition-all duration-300 ${
         submitted
           ? "border-gray-200 bg-gray-50 opacity-80"

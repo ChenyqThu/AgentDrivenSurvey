@@ -18,8 +18,8 @@ export function MessageList({ messages, onCardSubmit }: MessageListProps) {
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-sm text-gray-400 px-4">
-        The conversation will appear here.
+      <div className="flex-1 flex items-center justify-center text-sm text-gray-400 px-4" dir="auto">
+        对话内容将在此显示。
       </div>
     );
   }
@@ -64,7 +64,7 @@ function MessageBubble({
             }`}
           >
             {message.content ? (
-              <p className="whitespace-pre-wrap break-words">{message.content}</p>
+              <p className="whitespace-pre-wrap break-words" dir="auto">{message.content}</p>
             ) : (
               <span className="opacity-50 italic text-xs">…</span>
             )}

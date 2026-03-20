@@ -47,7 +47,8 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
             onInput={handleInput}
             disabled={disabled}
             rows={1}
-            placeholder={disabled ? "Waiting for response…" : "Type your answer… (Enter to send, Shift+Enter for newline)"}
+            placeholder={disabled ? "等待回复中…" : "输入消息…（Enter 发送，Shift+Enter 换行）"}
+            dir="auto"
             className="w-full resize-none rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 leading-relaxed overflow-hidden"
             style={{ minHeight: "48px" }}
           />
