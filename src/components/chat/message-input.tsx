@@ -36,7 +36,7 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
   }
 
   return (
-    <div className="border-t border-gray-200 bg-white px-4 py-3">
+    <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 sm:px-4 py-3 safe-area-bottom">
       <div className="flex items-end gap-2 max-w-3xl mx-auto">
         <div className="flex-1 relative">
           <textarea
@@ -47,9 +47,9 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
             onInput={handleInput}
             disabled={disabled}
             rows={1}
-            placeholder={disabled ? "等待回复中…" : "输入消息…（Enter 发送，Shift+Enter 换行）"}
+            placeholder={disabled ? "等待回复中…" : "输入消息…"}
             dir="auto"
-            className="w-full resize-none rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 leading-relaxed overflow-hidden"
+            className="w-full resize-none rounded-xl border border-gray-300 dark:border-gray-600 px-4 py-3 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500 leading-relaxed overflow-hidden"
             style={{ minHeight: "48px" }}
           />
         </div>

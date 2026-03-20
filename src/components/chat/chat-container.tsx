@@ -38,17 +38,17 @@ export function ChatContainer({
   return (
     <div className="flex flex-col h-full">
       {/* Chat header */}
-      <div className="flex-shrink-0 border-b border-gray-200 bg-white px-4 py-3">
+      <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3">
         <div className="max-w-3xl mx-auto flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white">
+          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
             A
           </div>
-          <div>
-            <p className="font-semibold text-gray-900 text-sm leading-tight">
+          <div className="min-w-0">
+            <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight truncate">
               {surveyTitle}
             </p>
             {surveyDescription && (
-              <p className="text-xs text-gray-400 leading-tight mt-0.5">
+              <p className="text-xs text-gray-400 dark:text-gray-500 leading-tight mt-0.5 truncate">
                 {surveyDescription}
               </p>
             )}
@@ -58,7 +58,7 @@ export function ChatContainer({
 
       {/* Error banner */}
       {error && (
-        <div className="flex-shrink-0 bg-red-50 border-b border-red-200 text-red-700 text-xs px-4 py-2 text-center">
+        <div className="flex-shrink-0 bg-red-50 dark:bg-red-950 border-b border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-xs px-4 py-2 text-center">
           {error} — please try again.
         </div>
       )}

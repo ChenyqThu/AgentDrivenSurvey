@@ -67,18 +67,18 @@ function NPSCard({ card, onSubmit, disabled }: InteractiveCardProps) {
 
   return (
     <CardWrapper submitted={submitted}>
-      <p className="text-sm font-semibold text-gray-800 mb-4">{card.question}</p>
+      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-4">{card.question}</p>
       <div className="flex gap-1 flex-wrap justify-center">
         {Array.from({ length: 11 }, (_, i) => (
           <button
             key={i}
             onClick={() => handleSelect(i)}
             disabled={disabled || submitted}
-            className={`w-9 h-9 rounded-lg text-sm font-bold border transition-all duration-150 ${
+            className={`min-w-[2.25rem] h-9 px-1 rounded-lg text-sm font-bold border transition-all duration-150 ${
               submitted && selected === i
                 ? getSelectedColor(i)
                 : submitted
-                ? "bg-gray-100 text-gray-400 border-gray-200 cursor-default"
+                ? "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-default"
                 : `${getColor(i)} cursor-pointer`
             }`}
           >
@@ -86,13 +86,13 @@ function NPSCard({ card, onSubmit, disabled }: InteractiveCardProps) {
           </button>
         ))}
       </div>
-      <div className="flex justify-between mt-2 text-xs text-gray-400 px-1">
+      <div className="flex justify-between mt-2 text-xs text-gray-400 dark:text-gray-500 px-1">
         <span>{lowLabel}</span>
         <span>{highLabel}</span>
       </div>
       {submitted && (
-        <p className="mt-3 text-xs text-center text-gray-500">
-          已选择 <span className="font-semibold text-gray-700">{selected}</span>
+        <p className="mt-3 text-xs text-center text-gray-500 dark:text-gray-400">
+          已选择 <span className="font-semibold text-gray-700 dark:text-gray-200">{selected}</span>
         </p>
       )}
     </CardWrapper>
@@ -118,7 +118,7 @@ function RatingCard({ card, onSubmit, disabled }: InteractiveCardProps) {
 
   return (
     <CardWrapper submitted={submitted}>
-      <p className="text-sm font-semibold text-gray-800 mb-4">{card.question}</p>
+      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-4">{card.question}</p>
       <div className="flex gap-2 justify-center">
         {Array.from({ length: maxStars }, (_, i) => {
           const starVal = i + 1;
@@ -130,9 +130,9 @@ function RatingCard({ card, onSubmit, disabled }: InteractiveCardProps) {
               onMouseEnter={() => !submitted && setHovered(starVal)}
               onMouseLeave={() => !submitted && setHovered(null)}
               disabled={disabled || submitted}
-              className={`text-3xl transition-transform duration-100 ${
+              className={`text-3xl transition-transform duration-100 min-w-[44px] min-h-[44px] flex items-center justify-center ${
                 submitted ? "cursor-default" : "hover:scale-110 cursor-pointer"
-              } ${filled ? "text-yellow-400" : "text-gray-200"}`}
+              } ${filled ? "text-yellow-400" : "text-gray-200 dark:text-gray-600"}`}
             >
               ★
             </button>
@@ -140,8 +140,8 @@ function RatingCard({ card, onSubmit, disabled }: InteractiveCardProps) {
         })}
       </div>
       {submitted && (
-        <p className="mt-3 text-xs text-center text-gray-500">
-          已评分 <span className="font-semibold text-gray-700">{selected} / {maxStars}</span>
+        <p className="mt-3 text-xs text-center text-gray-500 dark:text-gray-400">
+          已评分 <span className="font-semibold text-gray-700 dark:text-gray-200">{selected} / {maxStars}</span>
         </p>
       )}
     </CardWrapper>
@@ -164,19 +164,19 @@ function MultipleChoiceCard({ card, onSubmit, disabled }: InteractiveCardProps) 
 
   return (
     <CardWrapper submitted={submitted}>
-      <p className="text-sm font-semibold text-gray-800 mb-3">{card.question}</p>
+      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">{card.question}</p>
       <div className="flex flex-col gap-2">
         {options.map((opt) => (
           <button
             key={opt}
             onClick={() => handleSelect(opt)}
             disabled={disabled || submitted}
-            className={`w-full text-left px-4 py-2.5 rounded-xl text-sm border transition-all duration-150 ${
+            className={`w-full text-left px-4 py-3 rounded-xl text-sm border transition-all duration-150 min-h-[44px] ${
               submitted && selected === opt
                 ? "bg-blue-600 text-white border-blue-600 font-medium"
                 : submitted
-                ? "bg-gray-50 text-gray-400 border-gray-200 cursor-default"
-                : "bg-white text-gray-700 border-gray-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer"
+                ? "bg-gray-50 dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-default"
+                : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer"
             }`}
           >
             {opt}
@@ -217,9 +217,9 @@ function MultiSelectCard({ card, onSubmit, disabled }: InteractiveCardProps) {
 
   return (
     <CardWrapper submitted={submitted}>
-      <p className="text-sm font-semibold text-gray-800 mb-1">{card.question}</p>
+      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">{card.question}</p>
       {!submitted && (
-        <p className="text-xs text-gray-400 mb-3">
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
           选择 {minSelect === maxSelect ? minSelect : `${minSelect}–${maxSelect}`} 项
         </p>
       )}
@@ -231,20 +231,20 @@ function MultiSelectCard({ card, onSubmit, disabled }: InteractiveCardProps) {
               key={opt}
               onClick={() => toggleOption(opt)}
               disabled={disabled || submitted}
-              className={`w-full text-left px-4 py-2.5 rounded-xl text-sm border transition-all duration-150 flex items-center gap-3 ${
+              className={`w-full text-left px-4 py-3 rounded-xl text-sm border transition-all duration-150 flex items-center gap-3 min-h-[44px] ${
                 submitted && isSelected
                   ? "bg-blue-600 text-white border-blue-600 font-medium"
                   : submitted
-                  ? "bg-gray-50 text-gray-400 border-gray-200 cursor-default"
+                  ? "bg-gray-50 dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-default"
                   : isSelected
-                  ? "bg-blue-50 text-blue-700 border-blue-400 font-medium"
-                  : "bg-white text-gray-700 border-gray-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer"
+                  ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-400 font-medium"
+                  : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer"
               }`}
             >
               <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
                 isSelected
                   ? submitted ? "border-white bg-white" : "border-blue-500 bg-blue-500"
-                  : submitted ? "border-gray-300" : "border-gray-300"
+                  : submitted ? "border-gray-300 dark:border-gray-500" : "border-gray-300 dark:border-gray-500"
               }`}>
                 {isSelected && (
                   <svg className={`w-2.5 h-2.5 ${submitted ? "text-blue-600" : "text-white"}`} fill="none" viewBox="0 0 10 8">
@@ -261,7 +261,7 @@ function MultiSelectCard({ card, onSubmit, disabled }: InteractiveCardProps) {
         <button
           onClick={handleSubmit}
           disabled={selected.size < minSelect}
-          className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="mt-3 w-full py-3 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-h-[44px]"
         >
           确认
         </button>
@@ -288,17 +288,17 @@ function YesNoCard({ card, onSubmit, disabled }: InteractiveCardProps) {
 
   return (
     <CardWrapper submitted={submitted}>
-      <p className="text-sm font-semibold text-gray-800 mb-4">{card.question}</p>
+      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-4">{card.question}</p>
       <div className="flex gap-3">
         <button
           onClick={() => handleSelect("yes")}
           disabled={disabled || submitted}
-          className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all duration-150 ${
+          className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all duration-150 min-h-[44px] ${
             submitted && selected === "yes"
               ? "bg-green-600 text-white border-green-600"
               : submitted
-              ? "bg-gray-50 text-gray-300 border-gray-200 cursor-default"
-              : "bg-white text-green-700 border-green-400 hover:bg-green-50 cursor-pointer"
+              ? "bg-gray-50 dark:bg-gray-700 text-gray-300 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-default"
+              : "bg-white dark:bg-gray-800 text-green-700 dark:text-green-400 border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 cursor-pointer"
           }`}
         >
           {yesLabel}
@@ -306,12 +306,12 @@ function YesNoCard({ card, onSubmit, disabled }: InteractiveCardProps) {
         <button
           onClick={() => handleSelect("no")}
           disabled={disabled || submitted}
-          className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all duration-150 ${
+          className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all duration-150 min-h-[44px] ${
             submitted && selected === "no"
               ? "bg-red-500 text-white border-red-500"
               : submitted
-              ? "bg-gray-50 text-gray-300 border-gray-200 cursor-default"
-              : "bg-white text-red-600 border-red-300 hover:bg-red-50 cursor-pointer"
+              ? "bg-gray-50 dark:bg-gray-700 text-gray-300 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-default"
+              : "bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 border-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer"
           }`}
         >
           {noLabel}
@@ -358,7 +358,7 @@ function LikertCard({ card, onSubmit, disabled }: InteractiveCardProps) {
 
   return (
     <CardWrapper submitted={submitted}>
-      <p className="text-sm font-semibold text-gray-800 mb-4">{card.question}</p>
+      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-4">{card.question}</p>
       <div className="flex gap-1.5 justify-center">
         {Array.from({ length: points }, (_, i) => (
           <button
@@ -366,25 +366,25 @@ function LikertCard({ card, onSubmit, disabled }: InteractiveCardProps) {
             onClick={() => handleSelect(i)}
             disabled={disabled || submitted}
             title={labels[i]}
-            className={`flex-1 py-2.5 rounded-lg text-xs font-semibold border transition-all duration-150 ${
+            className={`flex-1 py-3 rounded-lg text-xs font-semibold border transition-all duration-150 min-h-[44px] ${
               submitted && selected === i
                 ? "bg-blue-600 text-white border-blue-700"
                 : submitted
-                ? "bg-gray-50 text-gray-300 border-gray-200 cursor-default"
-                : "bg-white text-gray-600 border-gray-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer"
+                ? "bg-gray-50 dark:bg-gray-700 text-gray-300 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-default"
+                : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer"
             }`}
           >
             {i + 1}
           </button>
         ))}
       </div>
-      <div className="flex justify-between mt-1.5 text-xs text-gray-400 px-0.5">
+      <div className="flex justify-between mt-1.5 text-xs text-gray-400 dark:text-gray-500 px-0.5">
         <span className="max-w-[40%] text-left">{labels[0]}</span>
         <span className="max-w-[40%] text-right">{labels[labels.length - 1]}</span>
       </div>
       {submitted && selected !== null && (
-        <p className="mt-3 text-xs text-center text-gray-500">
-          已选择 <span className="font-semibold text-gray-700">{labels[selected]}</span>
+        <p className="mt-3 text-xs text-center text-gray-500 dark:text-gray-400">
+          已选择 <span className="font-semibold text-gray-700 dark:text-gray-200">{labels[selected]}</span>
         </p>
       )}
     </CardWrapper>
@@ -412,17 +412,17 @@ function SliderCard({ card, onSubmit, disabled }: InteractiveCardProps) {
 
   return (
     <CardWrapper submitted={submitted}>
-      <p className="text-sm font-semibold text-gray-800 mb-4">{card.question}</p>
+      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-4">{card.question}</p>
       <div className="px-2">
-        <div className="flex justify-between text-xs text-gray-400 mb-1">
+        <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500 mb-1">
           <span>{min}{unit}</span>
-          <span className="text-base font-bold text-blue-600">
+          <span className="text-base font-bold text-blue-600 dark:text-blue-400">
             {value}{unit}
           </span>
           <span>{max}{unit}</span>
         </div>
         <div className="relative h-6 flex items-center">
-          <div className="absolute inset-x-0 h-2 rounded-full bg-gray-200" />
+          <div className="absolute inset-x-0 h-2 rounded-full bg-gray-200 dark:bg-gray-600" />
           <div
             className="absolute left-0 h-2 rounded-full bg-blue-500"
             style={{ width: `${pct}%` }}
@@ -442,14 +442,14 @@ function SliderCard({ card, onSubmit, disabled }: InteractiveCardProps) {
       {!submitted && (
         <button
           onClick={handleSubmit}
-          className="mt-4 w-full py-2.5 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          className="mt-4 w-full py-3 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors min-h-[44px]"
         >
           确认
         </button>
       )}
       {submitted && (
-        <p className="mt-3 text-xs text-center text-gray-500">
-          已选择 <span className="font-semibold text-gray-700">{value}{unit}</span>
+        <p className="mt-3 text-xs text-center text-gray-500 dark:text-gray-400">
+          已选择 <span className="font-semibold text-gray-700 dark:text-gray-200">{value}{unit}</span>
         </p>
       )}
     </CardWrapper>
@@ -468,10 +468,10 @@ function CardWrapper({
   return (
     <div
       dir="auto"
-      className={`mt-2 rounded-2xl border px-5 py-4 max-w-sm w-full transition-all duration-300 ${
+      className={`mt-2 rounded-2xl border px-5 py-4 w-full transition-all duration-300 ${
         submitted
-          ? "border-gray-200 bg-gray-50 opacity-80"
-          : "border-blue-200 bg-white shadow-md"
+          ? "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 opacity-80"
+          : "border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-800 shadow-md"
       }`}
     >
       {children}

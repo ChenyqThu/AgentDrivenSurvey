@@ -40,7 +40,7 @@ export function TypingIndicator() {
       <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white shadow-sm">
         AI
       </div>
-      <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-sm px-5 py-3.5 shadow-sm">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl rounded-bl-sm px-5 py-3.5 shadow-sm">
         <div className="flex items-center gap-2.5">
           <div className="flex items-center gap-1.5">
             <span className="typing-dot w-1.5 h-1.5 rounded-full bg-blue-400" />
@@ -49,7 +49,7 @@ export function TypingIndicator() {
           </div>
           <span
             key={phrase}
-            className="text-xs text-gray-400 italic phrase-fade"
+            className="text-xs text-gray-400 dark:text-gray-500 italic phrase-fade"
           >
             {phrase}
           </span>
