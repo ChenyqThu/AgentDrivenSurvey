@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useMemo, use } from "react";
-import { flushSync } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { ChatContainer } from "@/components/chat/chat-container";
 import { WelcomeScreen } from "@/components/chat/welcome-screen";
@@ -52,7 +51,9 @@ export default function SurveyPage({
   }, [surveyId]);
 
   async function handleStart() {
-    flushSync(() => setPhase("preparing"));
+    setLoadError(null);
+    setPhase("preparing");
+
     try {
       const storageKey = `${SESSION_KEY_PREFIX}${surveyId}_${respondentId}`;
       // Clean up old format key
@@ -75,8 +76,17 @@ export default function SurveyPage({
               createdAt: m.createdAt,
             })
           );
+
+          if (history.length > 0) {
+            setSessionId(existingSessionId);
+            setInitialMessages(history);
+            setPhase("chat");
+            return;
+          }
+
+          localStorage.setItem(storageKey, existingSessionId);
           setSessionId(existingSessionId);
-          setInitialMessages(history);
+          setInitialMessages([]);
           setPhase("chat");
           return;
         }
@@ -98,12 +108,10 @@ export default function SurveyPage({
       const { id: newSessionId } = await res.json();
       localStorage.setItem(storageKey, newSessionId);
       setSessionId(newSessionId);
-
-      // Fetch AI greeting directly — no useEffect, no race conditions
-      const greeting = await fetchGreeting(newSessionId);
-      setInitialMessages(greeting);
+      setInitialMessages([]);
       setPhase("chat");
     } catch (err) {
+      console.error("Failed to start survey:", err);
       setLoadError(err instanceof Error ? err.message : "Failed to start survey");
       setPhase("welcome");
     }
@@ -186,6 +194,7 @@ export default function SurveyPage({
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       <ChatContainer
+        key={sessionId}
         sessionId={sessionId!}
         surveyTitle={survey.title}
         surveyDescription={survey.description}
@@ -193,62 +202,6 @@ export default function SurveyPage({
       />
     </div>
   );
-}
-
-// Fetch AI greeting by calling the chat API and parsing the SSE response
-async function fetchGreeting(sessionId: string): Promise<ChatMessage[]> {
-  const res = await fetch(`/api/chat/${sessionId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: "__START__" }),
-  });
-
-  if (!res.ok || !res.body) return [];
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let text = "";
-  const cards: Array<{
-    id: string;
-    type: string;
-    question: string;
-    options?: string[];
-    config?: Record<string, unknown>;
-  }> = [];
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const raw = line.slice(6).trim();
-      if (!raw || raw === "[DONE]") continue;
-      try {
-        const event = JSON.parse(raw);
-        if (event.type === "text" && event.content) text += event.content;
-        if (event.type === "interactive_card" && event.card) cards.push(event.card);
-      } catch {
-        /* skip */
-      }
-    }
-  }
-
-  if (!text && cards.length === 0) return [];
-
-  return [
-    {
-      id: `greeting_${Date.now()}`,
-      role: "assistant" as const,
-      content: text,
-      cards: cards.length > 0 ? cards : undefined,
-      createdAt: new Date().toISOString(),
-    },
-  ];
 }
 
 function generateRespondentId(): string {

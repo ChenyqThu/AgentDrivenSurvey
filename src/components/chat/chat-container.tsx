@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useChat, type ChatMessage } from "@/hooks/use-chat";
 import { MessageList } from "./message-list";
 import { MessageInput } from "./message-input";
@@ -19,14 +19,21 @@ export function ChatContainer({
   surveyDescription,
   initialMessages,
 }: ChatContainerProps) {
+  const initializedRef = useRef(false);
   const { messages, isLoading, error, sendMessage, loadHistory, submitCardInteraction } =
     useChat(sessionId);
 
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
     if (initialMessages && initialMessages.length > 0) {
       loadHistory(initialMessages);
+      return;
     }
-  }, [initialMessages, loadHistory]);
+
+    void sendMessage("__START__");
+  }, [initialMessages, loadHistory, sendMessage]);
 
   return (
     <div className="flex flex-col h-full">

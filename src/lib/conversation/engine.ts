@@ -141,7 +141,7 @@ export async function handleMessage(
   const isAutoStart = userMessage.trim() === '__START__';
 
   const llmUserMessage = isAutoStart
-    ? '[System: The user just opened the survey. Deliver your opening introduction as described in the instructions. Do NOT ask any survey questions yet.]'
+    ? '[System: The user just opened the survey. Deliver your opening introduction in English as described in the instructions. Do NOT ask any survey questions yet.]'
     : isCardInteraction
       ? formatCardInteractionMessage(userMessage)
       : userMessage;
