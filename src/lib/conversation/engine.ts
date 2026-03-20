@@ -324,21 +324,31 @@ export async function handleMessage(
           allAssistantText += result.text;
           currentState = result.state;
 
-          // If the LLM produced text, we're done — no continuation needed
-          if (result.text.trim()) {
+          // Check if response needs continuation:
+          // - No text at all (tools only) → must continue
+          // - Has text but no question/invitation → should continue (AI left conversation hanging)
+          const hasText = result.text.trim().length > 0;
+          const endsWithQuestion = /[?？]\s*$/.test(result.text.trim()) ||
+            /[.。]\s*$/.test(result.text.trim()) === false; // doesn't end with period = likely incomplete
+          const looksComplete = hasText && (
+            /[?？]\s*$/.test(result.text.trim()) || // ends with question mark
+            /[!！😊👋🎉]\s*$/.test(result.text.trim()) || // ends with exclamation/emoji (greeting/closing)
+            result.text.trim().length > 200 // long enough response, probably complete
+          );
+
+          if (looksComplete) {
             break;
           }
 
-          // If the LLM only called tools with no text, do a continuation call
-          // by appending a tool-results acknowledgment to prompt the LLM to continue
-          if (result.hadToolCalls && !result.text.trim()) {
+          // Continue if tools were called without adequate text response
+          if (result.hadToolCalls || (hasText && !looksComplete)) {
             currentMessages.push({
               role: 'assistant' as const,
-              content: '[Tools executed: data extracted and progress updated successfully]',
+              content: result.text || '[Tools executed successfully]',
             });
             currentMessages.push({
               role: 'user' as const,
-              content: '[System: Your tool calls have been processed. Now please respond to the user — acknowledge their answer naturally and continue to the next question. Always include a text response.]',
+              content: '[System: Continue the conversation. Your previous response did not end with a question for the user. You MUST ask a follow-up question or naturally transition to the next topic. Never leave the conversation hanging.]',
             });
             continue;
           }

@@ -119,7 +119,7 @@ export default function SurveyPage({
 
   if (loadError) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
         <div className="text-center max-w-sm">
           <div className="text-4xl mb-4">⚠️</div>
           <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Survey Unavailable</h1>
@@ -131,7 +131,7 @@ export default function SurveyPage({
 
   if (phase === "loading" || !survey) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500 text-sm">
           <SpinnerIcon className="w-4 h-4 animate-spin" />
           Loading survey…
@@ -142,7 +142,7 @@ export default function SurveyPage({
 
   if (survey.status !== "active") {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
         <div className="text-center max-w-sm">
           <div className="text-4xl mb-4">🔒</div>
           <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Survey Not Available</h1>
@@ -156,7 +156,7 @@ export default function SurveyPage({
 
   if (phase === "welcome") {
     return (
-      <div className="flex flex-col h-[100dvh] bg-gray-50 dark:bg-gray-950">
+      <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950">
         <WelcomeScreen
           title={survey.title}
           description={survey.description}
@@ -168,7 +168,7 @@ export default function SurveyPage({
 
   if (phase === "preparing") {
     return (
-      <div className="flex flex-col h-[100dvh] bg-gray-50 dark:bg-gray-950">
+      <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950">
         {/* Same header as ChatContainer */}
         <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3">
           <div className="max-w-3xl mx-auto flex items-center gap-3">
@@ -192,7 +192,7 @@ export default function SurveyPage({
 
   // phase === "chat"
   return (
-    <div className="flex flex-col h-[100dvh] bg-gray-50 dark:bg-gray-950">
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950">
       <ChatContainer
         key={sessionId}
         sessionId={sessionId!}

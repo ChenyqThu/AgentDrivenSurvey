@@ -28,9 +28,10 @@ function pickRandom(): string {
 }
 
 export function TypingIndicator() {
-  const [phrase, setPhrase] = useState(pickRandom);
+  const [phrase, setPhrase] = useState("");
 
   useEffect(() => {
+    setPhrase(pickRandom());
     const interval = setInterval(() => setPhrase(pickRandom()), 3000);
     return () => clearInterval(interval);
   }, []);
