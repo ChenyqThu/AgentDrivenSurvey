@@ -133,6 +133,7 @@ export async function handleMessage(
       behavior: agent.behavior,
       interactiveSkills: agent.interactiveSkills,
     } : undefined,
+    messageCount: history.length,
   });
 
   // 4. Build message history for the LLM

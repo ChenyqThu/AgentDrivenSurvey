@@ -21,7 +21,18 @@ src/
 │   ├── db/        # Drizzle schema、migrations、数据库连接
 │   ├── llm/       # LLM Provider 抽象层（Anthropic + OpenAI 兼容）
 │   ├── survey/    # 问卷类型、管理器、schema 生成器、agent 构建器
-│   ├── conversation/ # 对话引擎、状态机、prompt 构建器、tools、skills
+│   ├── conversation/
+│   │   ├── prompts/           # 模块化 prompt 系统
+│   │   │   ├── soul.ts        # 灵魂 — agent 人格与沟通原则（跨问卷稳定）
+│   │   │   ├── strategy.ts    # 策略 — 访谈方法论、回应模式、节奏
+│   │   │   ├── themes.ts      # 主题 — schema → 探索方向（每个问卷不同）
+│   │   │   └── context.ts     # 上下文 — 阶段检测、进度、已覆盖主题（每轮变化）
+│   │   ├── prompt-builder.ts  # 组装器 — 拼接 prompt 模块
+│   │   ├── engine.ts          # 对话引擎、SSE 流式处理、tool 执行
+│   │   ├── state.ts           # 对话状态机
+│   │   ├── tools.ts           # LLM tool 定义
+│   │   ├── skills.ts          # 交互卡片定义
+│   │   └── types.ts           # 类型定义
 │   ├── notion/    # Notion 集成（数据库创建、数据同步、对话记录导出）
 │   └── analysis/  # 个体 + 聚合分析（Phase 2）
 ├── components/
@@ -33,10 +44,16 @@ docs/
 ```
 
 ## 核心架构决策
+- **模块化 Prompt 系统**：system prompt 由 4 个独立模块组装（soul/strategy/themes/context），各模块可独立迭代
+  - `soul`：agent 人格与沟通原则，跨问卷稳定
+  - `strategy`：访谈方法论（回应模式、深度优先、节奏），跨问卷稳定
+  - `themes`：将问卷 schema（可能有 55 个问题）压缩为 5-8 个探索主题方向，每个问卷不同
+  - `context`：阶段感知（opening/exploring/closing）+ 进度追踪 + 已覆盖主题，每轮动态生成
+- **主题驱动而非问题驱动**：AI 看到的是探索方向，不是逐题清单，避免机械化逐题提问
 - **两阶段 Agent 构建**：Schema Agent（结构化问卷）和 Config Agent（人设/技能/行为）独立运行，均使用 Opus 模型
 - **实时 tool_use 提取**：零额外 LLM 成本，extract_data + update_progress + render_interactive 工具
 - **Provider 抽象**：支持 anthropic / anthropic-messages（自定义代理）/ openai-compatible 三种 Provider
-- **交互卡片系统**：render_interactive tool 渲染 NPS/评分/选择题等卡片，用户交互后回调
+- **交互卡片系统**：render_interactive tool 渲染 NPS/评分卡片，用户交互后回调
 - **Prompt 缓存**：System prompt + tools 跨轮次缓存（约 90% 成本节省）
 - **完整对话历史**：~20 轮 ≈ 20K tokens，200K 上下文限制内无需截断
 - **Notion 同步**：会话完成后自动/手动同步结构化数据 + 对话记录到 Notion 数据库
