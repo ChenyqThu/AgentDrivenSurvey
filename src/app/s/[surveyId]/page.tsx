@@ -20,6 +20,52 @@ interface SessionInfo {
 
 const SESSION_KEY_PREFIX = "survey_session_";
 
+// Parse SSE stream to extract AI greeting messages
+async function fetchAIGreeting(sessionId: string): Promise<ChatMessage[]> {
+  const res = await fetch(`/api/chat/${sessionId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: "__START__" }),
+  });
+
+  if (!res.ok || !res.body) return [];
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let text = "";
+  const cards: Array<{ id: string; type: string; question: string; options?: string[]; config?: Record<string, unknown> }> = [];
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const raw = line.slice(6).trim();
+      if (!raw || raw === "[DONE]") continue;
+      try {
+        const event = JSON.parse(raw);
+        if (event.type === "text" && event.content) text += event.content;
+        if (event.type === "interactive_card" && event.card) cards.push(event.card);
+      } catch { /* skip */ }
+    }
+  }
+
+  if (!text && cards.length === 0) return [];
+
+  return [{
+    id: `greeting_${Date.now()}`,
+    role: "assistant" as const,
+    content: text,
+    cards: cards.length > 0 ? cards : undefined,
+    createdAt: new Date().toISOString(),
+  }];
+}
+
 export default function SurveyPage({
   params,
 }: {
@@ -53,8 +99,8 @@ export default function SurveyPage({
   async function handleStart() {
     setInitializing(true);
     try {
-      // Check for existing session in localStorage
-      const storageKey = `${SESSION_KEY_PREFIX}${surveyId}`;
+      // Include uid in storage key so different users get separate sessions
+      const storageKey = `${SESSION_KEY_PREFIX}${surveyId}_${respondentId}`;
       const existingSessionId = localStorage.getItem(storageKey);
 
       if (existingSessionId) {
@@ -62,7 +108,13 @@ export default function SurveyPage({
         const res = await fetch(`/api/sessions/${existingSessionId}`);
         if (res.ok) {
           const data = await res.json();
-          setSession({ id: existingSessionId, messages: data.messages ?? [] });
+          const historyMessages: ChatMessage[] = (data.messages ?? []).map((m: { id: string; role: string; content: string; createdAt?: string }) => ({
+            id: m.id,
+            role: m.role as "user" | "assistant",
+            content: m.content,
+            createdAt: m.createdAt,
+          }));
+          setSession({ id: existingSessionId, messages: historyMessages });
           setStarted(true);
           return;
         }
@@ -84,7 +136,10 @@ export default function SurveyPage({
 
       const data: SessionInfo = await res.json();
       localStorage.setItem(storageKey, data.id);
-      setSession({ id: data.id, messages: data.messages ?? [] });
+
+      // Trigger AI greeting immediately — user sees the welcome message right away
+      const greetingMessages = await fetchAIGreeting(data.id);
+      setSession({ id: data.id, messages: greetingMessages });
       setStarted(true);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Failed to start survey");
@@ -147,7 +202,7 @@ export default function SurveyPage({
           {initializing && (
             <div className="text-center pb-6 text-sm text-gray-400 flex items-center justify-center gap-2">
               <SpinnerIcon className="w-4 h-4 animate-spin" />
-              Starting session…
+              正在准备调研…
             </div>
           )}
         </div>

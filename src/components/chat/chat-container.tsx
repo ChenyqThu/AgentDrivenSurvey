@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useChat, type ChatMessage } from "@/hooks/use-chat";
 import { MessageList } from "./message-list";
 import { MessageInput } from "./message-input";
@@ -21,23 +21,11 @@ export function ChatContainer({
 }: ChatContainerProps) {
   const { messages, isLoading, error, sendMessage, loadHistory, submitCardInteraction } =
     useChat(sessionId);
-  const autoTriggered = useRef(false);
-
   useEffect(() => {
     if (initialMessages && initialMessages.length > 0) {
       loadHistory(initialMessages);
     }
   }, [initialMessages, loadHistory]);
-
-  // Auto-trigger AI greeting when session starts with no messages
-  useEffect(() => {
-    if (autoTriggered.current) return;
-    const hasHistory = initialMessages && initialMessages.length > 0;
-    if (!hasHistory && messages.length === 0 && !isLoading) {
-      autoTriggered.current = true;
-      sendMessage("__START__");
-    }
-  }, [initialMessages, messages.length, isLoading, sendMessage]);
 
   return (
     <div className="flex flex-col h-full">
