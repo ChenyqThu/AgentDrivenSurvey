@@ -331,24 +331,12 @@ export async function handleMessage(
           allAssistantText += result.text;
           currentState = result.state;
 
-          // Check if response needs continuation:
-          // - No text at all (tools only) → must continue
-          // - Has text but no question/invitation → should continue (AI left conversation hanging)
-          const hasText = result.text.trim().length > 0;
-          const endsWithQuestion = /[?？]\s*$/.test(result.text.trim()) ||
-            /[.。]\s*$/.test(result.text.trim()) === false; // doesn't end with period = likely incomplete
-          const looksComplete = hasText && (
-            /[?？]\s*$/.test(result.text.trim()) || // ends with question mark
-            /[!！😊👋🎉]\s*$/.test(result.text.trim()) || // ends with exclamation/emoji (greeting/closing)
-            result.text.trim().length > 200 // long enough response, probably complete
-          );
-
-          if (looksComplete) {
+          // Only continue if the LLM produced NO text at all (tools-only response)
+          if (result.text.trim()) {
             break;
           }
 
-          // Continue if tools were called without adequate text response
-          if (result.hadToolCalls || (hasText && !looksComplete)) {
+          if (result.hadToolCalls) {
             currentMessages.push({
               role: 'assistant' as const,
               content: result.text || '[Tools executed successfully]',
