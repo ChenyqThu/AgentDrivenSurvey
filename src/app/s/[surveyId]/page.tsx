@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, use } from "react";
+import { flushSync } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { ChatContainer } from "@/components/chat/chat-container";
 import { WelcomeScreen } from "@/components/chat/welcome-screen";
@@ -51,7 +52,7 @@ export default function SurveyPage({
   }, [surveyId]);
 
   async function handleStart() {
-    setPhase("preparing");
+    flushSync(() => setPhase("preparing"));
     try {
       const storageKey = `${SESSION_KEY_PREFIX}${surveyId}_${respondentId}`;
       // Clean up old format key
