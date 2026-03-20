@@ -13,7 +13,7 @@ export async function createSurvey(params: {
   rawInput: string
   context: SurveyContext
   settings?: Partial<SurveySettings>
-  createdBy: string
+  createdBy: string | null
 }): Promise<string> {
   const { title, description, rawInput, context, settings, createdBy } = params
 

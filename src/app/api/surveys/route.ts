@@ -12,13 +12,14 @@ export async function POST(request: Request) {
       rawInput,
       context,
       settings,
-      createdBy: 'system',
+      createdBy: null,
     });
 
     return NextResponse.json({ id: surveyId, title, status: 'draft' }, { status: 201 });
   } catch (error) {
     console.error('POST /api/surveys error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: 'Internal server error', detail: message }, { status: 500 });
   }
 }
 
