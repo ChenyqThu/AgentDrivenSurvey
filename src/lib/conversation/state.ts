@@ -60,13 +60,18 @@ function detectStage(roundCount: number, targetRounds: number): 'opening' | 'exp
 
 /**
  * Recompute themesExplored from extractedData + schema.
+ * Pre-groups fields by sectionId for O(T + E) instead of O(T * E).
  */
 function recomputeThemes(
   themes: ThemeProgress[],
   extractedFields: ExtractedField[],
 ): ThemeProgress[] {
+  const countBySection = new Map<string, number>();
+  for (const f of extractedFields) {
+    countBySection.set(f.sectionId, (countBySection.get(f.sectionId) ?? 0) + 1);
+  }
   return themes.map((theme) => {
-    const count = extractedFields.filter((f) => f.sectionId === theme.sectionId).length;
+    const count = countBySection.get(theme.sectionId) ?? 0;
     return {
       ...theme,
       fieldsExtracted: count,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useChat, type ChatMessage } from "@/hooks/use-chat";
 import { MessageList } from "./message-list";
 import { MessageInput } from "./message-input";
@@ -24,7 +24,6 @@ export function ChatContainer({
   const initializedRef = useRef(false);
   const { messages, isLoading, isCompleted, error, sendMessage, loadHistory, submitCardInteraction } =
     useChat(sessionId);
-  const [inputDisabled, setInputDisabled] = useState(false);
 
   useEffect(() => {
     if (initializedRef.current) return;
@@ -38,11 +37,6 @@ export function ChatContainer({
     // No hardcoded welcome — let AI generate a personalized opening
     sendMessage("__START__");
   }, [initialMessages, loadHistory, sendMessage]);
-
-  // Disable input when session is completed
-  useEffect(() => {
-    if (isCompleted) setInputDisabled(true);
-  }, [isCompleted]);
 
   return (
     <div className="flex flex-col h-full">
@@ -99,7 +93,7 @@ export function ChatContainer({
       {isCompleted ? (
         <CompletionCard onRestart={onRestart} />
       ) : (
-        <MessageInput onSend={sendMessage} disabled={isLoading || inputDisabled} />
+        <MessageInput onSend={sendMessage} disabled={isLoading || isCompleted} />
       )}
     </div>
   );

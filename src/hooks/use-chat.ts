@@ -49,6 +49,12 @@ export function useChat(sessionId: string): UseChatReturn {
     }
   }, []);
 
+  const handleSessionCompleted = useCallback(() => {
+    setIsCompleted(true);
+    sessionCompletedRef.current = true;
+    clearIdleTimer();
+  }, [clearIdleTimer]);
+
   const sendNudge = useCallback(async () => {
     if (
       loadingRef.current ||
@@ -82,7 +88,7 @@ export function useChat(sessionId: string): UseChatReturn {
 
       const contentType = res.headers.get("content-type") ?? "";
       if (contentType.includes("text/event-stream")) {
-        await consumeSSE(res, assistantId, setMessages, () => { setIsCompleted(true); sessionCompletedRef.current = true; clearIdleTimer(); });
+        await consumeSSE(res, assistantId, setMessages, handleSessionCompleted);
       }
     } catch {
       // Silently fail nudge
@@ -91,7 +97,7 @@ export function useChat(sessionId: string): UseChatReturn {
       loadingRef.current = false;
       setIsLoading(false);
     }
-  }, [sessionId]);
+  }, [sessionId, handleSessionCompleted]);
 
   const startIdleTimer = useCallback(() => {
     clearIdleTimer();
@@ -169,7 +175,7 @@ export function useChat(sessionId: string): UseChatReturn {
         const contentType = res.headers.get("content-type") ?? "";
 
         if (contentType.includes("text/event-stream")) {
-          await consumeSSE(res, assistantId, setMessages, () => { setIsCompleted(true); sessionCompletedRef.current = true; clearIdleTimer(); });
+          await consumeSSE(res, assistantId, setMessages, handleSessionCompleted);
         } else {
           const data = await res.json();
           const text =
@@ -195,7 +201,7 @@ export function useChat(sessionId: string): UseChatReturn {
         setIsLoading(false);
       }
     },
-    [sessionId, clearIdleTimer, startIdleTimer]
+    [sessionId, clearIdleTimer, startIdleTimer, handleSessionCompleted]
   );
 
   const submitCardInteraction = useCallback(
@@ -242,7 +248,7 @@ export function useChat(sessionId: string): UseChatReturn {
         const contentType = res.headers.get("content-type") ?? "";
 
         if (contentType.includes("text/event-stream")) {
-          await consumeSSE(res, assistantId, setMessages, () => { setIsCompleted(true); sessionCompletedRef.current = true; clearIdleTimer(); });
+          await consumeSSE(res, assistantId, setMessages, handleSessionCompleted);
         } else {
           const data = await res.json();
           const text =
@@ -268,7 +274,7 @@ export function useChat(sessionId: string): UseChatReturn {
         setIsLoading(false);
       }
     },
-    [sessionId, clearIdleTimer, startIdleTimer]
+    [sessionId, clearIdleTimer, startIdleTimer, handleSessionCompleted]
   );
 
   return { messages, isLoading, isCompleted, error, sendMessage, loadHistory, submitCardInteraction };

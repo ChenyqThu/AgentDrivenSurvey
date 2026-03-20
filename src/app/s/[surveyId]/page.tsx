@@ -86,7 +86,6 @@ export default function SurveyPage({
       const { id: newSessionId } = await res.json();
       localStorage.setItem(storageKey, newSessionId);
       setSessionId(newSessionId);
-      setInitialMessages([]);
       setPhase("chat");
     } catch (err) {
       console.error("Failed to restart survey:", err);
