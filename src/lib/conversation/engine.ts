@@ -137,13 +137,14 @@ export async function handleMessage(
 
   // 4. Build message history for the LLM
   //    For card interactions, format as a structured user message the LLM can understand
-  // Handle auto-start trigger — convert to a natural greeting for the LLM
+  // Handle auto-start trigger — used to generate AI greeting without a real user message
   const isAutoStart = userMessage.trim() === '__START__';
-  const effectiveMessage = isAutoStart ? '你好' : userMessage;
 
-  const llmUserMessage = isCardInteraction
-    ? formatCardInteractionMessage(effectiveMessage)
-    : effectiveMessage;
+  const llmUserMessage = isAutoStart
+    ? '[System: The user just opened the survey. Deliver your opening introduction as described in the instructions. Do NOT ask any survey questions yet.]'
+    : isCardInteraction
+      ? formatCardInteractionMessage(userMessage)
+      : userMessage;
 
   const llmMessages = history.map((m) => ({
     role: m.role as 'user' | 'assistant',
@@ -152,17 +153,25 @@ export async function handleMessage(
   llmMessages.push({ role: 'user', content: llmUserMessage });
 
   // 5. Save user message first (get next sequence number)
+  //    For auto-start, don't save a fake user message to the DB
   const nextSeq = history.length > 0 ? Math.max(...history.map((m) => m.sequence)) + 1 : 1;
 
-  const [savedUserMsg] = await db
-    .insert(messages)
-    .values({
-      sessionId,
-      role: 'user',
-      content: llmUserMessage,
-      sequence: nextSeq,
-    })
-    .returning({ id: messages.id });
+  let savedUserMsgId: string;
+  if (isAutoStart) {
+    // No user message saved for auto-start — use a placeholder ID for source tracking
+    savedUserMsgId = 'auto-start';
+  } else {
+    const [savedUserMsg] = await db
+      .insert(messages)
+      .values({
+        sessionId,
+        role: 'user',
+        content: isCardInteraction ? formatCardInteractionMessage(userMessage) : userMessage,
+        sequence: nextSeq,
+      })
+      .returning({ id: messages.id });
+    savedUserMsgId = savedUserMsg.id;
+  }
 
   // 6. Resolve LLM provider (use survey-level llmConfig override if present)
   const surveyLLMConfig = (settings as SurveySettings & { llmConfig?: Partial<LLMConfig> }).llmConfig;
@@ -232,7 +241,7 @@ export async function handleMessage(
             if (existing) {
               await db
                 .update(extractedData)
-                .set({ fieldValue: value, confidence, sourceMessageId: savedUserMsg.id })
+                .set({ fieldValue: value, confidence, sourceMessageId: savedUserMsgId === 'auto-start' ? null : savedUserMsgId })
                 .where(eq(extractedData.id, existing.id));
             } else {
               await db.insert(extractedData).values({
@@ -242,7 +251,7 @@ export async function handleMessage(
                 fieldKey,
                 fieldValue: value,
                 confidence,
-                sourceMessageId: savedUserMsg.id,
+                sourceMessageId: savedUserMsgId === 'auto-start' ? null : savedUserMsgId,
               });
             }
           } else if (block.name === 'update_progress') {
@@ -339,11 +348,12 @@ export async function handleMessage(
         }
 
         // Save assistant message
+        const assistantSeq = isAutoStart ? 1 : nextSeq + 1;
         await db.insert(messages).values({
           sessionId,
           role: 'assistant',
           content: allAssistantText,
-          sequence: nextSeq + 1,
+          sequence: assistantSeq,
         });
 
         // Update last_active_at

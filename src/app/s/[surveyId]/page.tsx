@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, useMemo, use } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChatContainer } from "@/components/chat/chat-container";
 import { WelcomeScreen } from "@/components/chat/welcome-screen";
@@ -27,7 +27,10 @@ export default function SurveyPage({
 }) {
   const { surveyId } = use(params);
   const searchParams = useSearchParams();
-  const respondentId = searchParams.get("uid") ?? generateRespondentId();
+  const respondentId = useMemo(
+    () => searchParams.get("uid") ?? generateRespondentId(),
+    [searchParams]
+  );
 
   const [survey, setSurvey] = useState<SurveyInfo | null>(null);
   const [session, setSession] = useState<SessionInfo | null>(null);
@@ -55,6 +58,9 @@ export default function SurveyPage({
     try {
       // Include uid in storage key so different users get separate sessions
       const storageKey = `${SESSION_KEY_PREFIX}${surveyId}_${respondentId}`;
+      // Clean up old format key (without uid) if it exists
+      const oldKey = `${SESSION_KEY_PREFIX}${surveyId}`;
+      if (localStorage.getItem(oldKey)) localStorage.removeItem(oldKey);
       const existingSessionId = localStorage.getItem(storageKey);
 
       if (existingSessionId) {
