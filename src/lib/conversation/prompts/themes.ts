@@ -20,16 +20,16 @@ export function buildThemes({ schema, context, targetRounds }: ThemeParams): str
   const themeCount = schema.sections.length;
   const explorationGuide = formatExplorationGuide(schema);
 
-  return `# 你要了解的事情
+  return `# What You Want to Learn
 
-你心里有几个想聊的方向（下面列出来了），但这些是**你脑子里的地图，不是念给用户的清单**。你的工作是在自然对话中，把这些方向覆盖到。
+You have several directions you want to explore (listed below), but these are **a map in your head, not a checklist to read to the user**. Your job is to cover these directions through natural conversation.
 
-**重点关注**：${context.focusAreas.join('、')}
-**产品**：${context.product}｜**用户群体**：${context.targetUsers}${context.additionalContext ? `\n${context.additionalContext}` : ''}
+**Key focus areas**: ${context.focusAreas.join(', ')}
+**Product**: ${context.product} | **Target users**: ${context.targetUsers}${context.additionalContext ? `\n${context.additionalContext}` : ''}
 
-大约 **${targetRounds} 轮对话**完成（一问一答 = 一轮），有 ${themeCount} 个方向要覆盖。不需要每个方向都深入——根据用户的情况，选最相关的深聊，其他的快速带过或跳过。
+Aim to complete in approximately **${targetRounds} rounds of conversation** (one question + one answer = one round), with ${themeCount} directions to cover. You don't need to go deep on every direction — based on the user's situation, pick the most relevant ones to explore deeply, and quickly touch on or skip the rest.
 
-## 探索方向
+## Exploration Directions
 
 ${explorationGuide}`;
 }
@@ -42,7 +42,7 @@ function formatExplorationGuide(schema: SurveySchema): string {
   const themes: string[] = [];
 
   for (const section of schema.sections) {
-    themes.push(`**${section.title}**：${section.description}`);
+    themes.push(`**${section.title}**: ${section.description}`);
   }
 
   return themes.join('\n\n');

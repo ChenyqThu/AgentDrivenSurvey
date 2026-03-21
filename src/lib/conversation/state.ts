@@ -91,11 +91,30 @@ export function advanceRound(
   const stage = detectStage(roundCount, state.targetRounds);
   const themesExplored = recomputeThemes(state.themesExplored, extractedFields);
 
+  // Track topic depth: consecutive rounds on the same section increment depth
+  let newDepth = 0;
+  let newLastSectionId = state._lastSectionId;
+  if (extractedFields.length > 0) {
+    const touchedThemes = themesExplored.filter((t) => t.touched);
+    const lastTouchedSection = touchedThemes.length > 0
+      ? touchedThemes[touchedThemes.length - 1].sectionId
+      : null;
+
+    if (lastTouchedSection && state._lastSectionId === lastTouchedSection) {
+      newDepth = state.currentTopicDepth + 1;
+    } else if (lastTouchedSection) {
+      newDepth = 1;
+    }
+    newLastSectionId = lastTouchedSection ?? state._lastSectionId;
+  }
+
   return {
     ...state,
     roundCount,
     stage,
     themesExplored,
+    currentTopicDepth: newDepth,
+    _lastSectionId: newLastSectionId,
     lastActiveAt: new Date().toISOString(),
   };
 }

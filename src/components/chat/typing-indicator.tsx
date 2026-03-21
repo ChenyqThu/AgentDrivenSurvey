@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { AvatarOrb } from "./avatar-orb";
 
 const QUIRKY_PHRASES = [
   "Warming up the microphone...",
@@ -41,46 +43,63 @@ export function InlineTypingIndicator() {
   }, []);
 
   return (
-    <>
-      <div className="flex items-center gap-2.5">
-        <div className="flex items-center gap-1.5">
-          <span className="typing-dot w-1.5 h-1.5 rounded-full bg-blue-400" />
-          <span className="typing-dot w-1.5 h-1.5 rounded-full bg-blue-400" />
-          <span className="typing-dot w-1.5 h-1.5 rounded-full bg-blue-400" />
-        </div>
+    <div className="flex items-center gap-2.5">
+      {/* Dots group with warm glow */}
+      <div
+        className="flex items-center gap-1"
+        style={{
+          filter:
+            "drop-shadow(0 0 4px color-mix(in srgb, #F59F00 30%, #3B5BDB 20%))",
+        }}
+      >
         <span
+          className="typing-dot rounded-full"
+          style={{
+            width: 5,
+            height: 5,
+            background: "linear-gradient(135deg, #3B5BDB, #6E8EF0)",
+            animationDelay: "0s",
+          }}
+        />
+        <span
+          className="typing-dot rounded-full"
+          style={{
+            width: 6,
+            height: 6,
+            background: "linear-gradient(135deg, #6E8EF0, #D4A855)",
+            animationDelay: "0.2s",
+          }}
+        />
+        <span
+          className="typing-dot rounded-full"
+          style={{
+            width: 5,
+            height: 5,
+            background: "linear-gradient(135deg, #D4A855, #F59F00)",
+            animationDelay: "0.4s",
+          }}
+        />
+      </div>
+
+      {/* Phrase crossfade */}
+      <AnimatePresence mode="wait">
+        <motion.span
           key={phrase}
-          className="text-xs text-gray-400 dark:text-gray-500 italic phrase-fade"
+          variants={{
+            enter: { opacity: 0, y: 4 },
+            visible: { opacity: 1, y: 0, transition: { duration: 0.2 } },
+            exit: { opacity: 0, y: -4, transition: { duration: 0.15 } },
+          }}
+          initial="enter"
+          animate="visible"
+          exit="exit"
+          className="text-[12px] italic"
+          style={{ color: "var(--text-tertiary)" }}
         >
           {phrase}
-        </span>
-      </div>
-      <style jsx>{`
-        .typing-dot {
-          animation: typingPulse 1.4s ease-in-out infinite;
-        }
-        .typing-dot:nth-child(1) { animation-delay: 0s; }
-        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes typingPulse {
-          0%, 60%, 100% {
-            opacity: 0.3;
-            transform: scale(0.8);
-          }
-          30% {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-        .phrase-fade {
-          animation: fadeIn 0.4s ease-in-out;
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(2px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-    </>
+        </motion.span>
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -90,10 +109,19 @@ export function InlineTypingIndicator() {
 export function TypingIndicator() {
   return (
     <div className="flex items-end gap-3 px-4 py-2">
-      <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white shadow-sm">
-        AI
-      </div>
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl rounded-bl-sm px-5 py-3.5 shadow-sm">
+      {/* AI avatar */}
+      <AvatarOrb size={32} />
+
+      {/* Bubble */}
+      <div
+        className="px-5 py-3.5"
+        style={{
+          backgroundColor: "var(--bg-surface)",
+          border: "1px solid var(--border-subtle)",
+          borderRadius: "6px 14px 14px 14px",
+          boxShadow: "var(--shadow-sm)",
+        }}
+      >
         <InlineTypingIndicator />
       </div>
     </div>

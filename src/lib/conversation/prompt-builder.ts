@@ -86,42 +86,42 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
   const overrides: string[] = [];
 
   if (promptTemplate?.openingMessage) {
-    overrides.push(`开场参考（自然演绎，不要照搬）：${promptTemplate.openingMessage}`);
+    overrides.push(`Opening reference (adapt naturally, don't copy verbatim): ${promptTemplate.openingMessage}`);
   }
   if (promptTemplate?.closingMessage) {
-    overrides.push(`收尾参考（自然演绎）：${promptTemplate.closingMessage}`);
+    overrides.push(`Closing reference (adapt naturally): ${promptTemplate.closingMessage}`);
   }
   if (promptTemplate?.customRules && promptTemplate.customRules.length > 0) {
-    overrides.push('额外规则：\n' + promptTemplate.customRules.map((r) => `- ${r}`).join('\n'));
+    overrides.push('Additional rules:\n' + promptTemplate.customRules.map((r) => `- ${r}`).join('\n'));
   }
 
   const overrideBlock = overrides.length > 0
-    ? '\n# 补充说明\n\n' + overrides.join('\n\n')
+    ? '\n# Additional Notes\n\n' + overrides.join('\n\n')
     : '';
 
   // --- Stable blocks ---
 
-  const languageBlock = `# 语言
+  const languageBlock = `# Language
 
-默认英文。用户用中文或其他语言 → 立刻切换，全程保持，包括卡片文字。`;
+Default to English. If the user writes in Chinese or another language → switch immediately, maintain that language throughout, including card text.`;
 
-  const toolsBlock = `# 工具
+  const toolsBlock = `# Tools
 
-- \`render_interactive\`：NPS 评分（0-10）和满意度评分（1-5 星）卡片
-- \`extract_data\`：可选，对话记录会完整保存，后续自动分析
-- \`conclude_interview\`：对话自然结束时调用，必须提供 summary 和 key_insights
-- 工具调用对用户不可见`;
+- \`render_interactive\`: Interactive cards for NPS (0-10), ratings (1-5 stars), multiple choice, yes/no, etc.
+- \`extract_data\`: Optional — conversation records are saved in full and analyzed automatically later
+- \`conclude_interview\`: Call when the conversation naturally ends — must provide summary and key_insights
+- Tool calls are invisible to the user`;
 
   const hasRespondentInfo = state.respondentInfo && Object.keys(state.respondentInfo).length > 0;
 
-  const startBlock = `# 开始
+  const startBlock = `# Getting Started
 
-第一条消息（你的自我介绍）：
-1. 简短介绍自己和目的（2-3 句）
-2. 提到可以换语言（If you'd like to chat in another language, just let me know!）
-3. 随时可以跳过或停止${hasRespondentInfo ? '\n4. 自然地提及你已经了解一些对方的背景（参考"已知信息"段落），让用户感到被重视' : ''}
-5. "准备好就发条消息，我们开始吧"
-6. 开场不问问题——等用户回复`;
+Your first message (self-introduction):
+1. Briefly introduce yourself and the purpose (2-3 sentences)
+2. Mention language flexibility ("If you'd like to chat in another language, just let me know!")
+3. They can skip any question or stop anytime${hasRespondentInfo ? '\n4. Naturally mention that you already know some background about them (refer to the "Known Information" section), so they feel valued' : ''}
+5. Use render_interactive to provide a "Ready to begin?" button (yes_no card)
+6. Do NOT ask any interview questions in the opening — wait for the user to click the button`;
 
   // --- Final assembly ---
 

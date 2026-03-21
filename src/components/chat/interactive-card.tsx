@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "motion/react";
+import { cardExpandVariants, springs } from "@/lib/motion";
 
 export interface CardData {
   id: string;
@@ -46,16 +48,16 @@ function NPSCard({ card, onSubmit, disabled }: InteractiveCardProps) {
   const lowLabel = (card.config?.lowLabel as string) ?? "Not at all likely";
   const highLabel = (card.config?.highLabel as string) ?? "Extremely likely";
 
-  function getColor(n: number) {
-    if (n <= 3) return "bg-red-500 hover:bg-red-600 text-white border-red-500";
-    if (n <= 6) return "bg-yellow-400 hover:bg-yellow-500 text-gray-900 border-yellow-400";
-    return "bg-green-500 hover:bg-green-600 text-white border-green-500";
+  function getBgColor(n: number): string {
+    if (n <= 3) return "var(--gradient-nps-low)";
+    if (n <= 6) return "var(--gradient-nps-mid)";
+    return "var(--gradient-nps-high)";
   }
 
-  function getSelectedColor(n: number) {
-    if (n <= 3) return "bg-red-600 text-white border-red-700 ring-2 ring-red-300";
-    if (n <= 6) return "bg-yellow-500 text-gray-900 border-yellow-600 ring-2 ring-yellow-200";
-    return "bg-green-600 text-white border-green-700 ring-2 ring-green-300";
+  function getTextColor(n: number): string {
+    if (n <= 3) return "var(--accent-danger)";
+    if (n <= 6) return "var(--accent-warm)";
+    return "var(--accent-success)";
   }
 
   function handleSelect(n: number) {
@@ -67,33 +69,51 @@ function NPSCard({ card, onSubmit, disabled }: InteractiveCardProps) {
 
   return (
     <CardWrapper submitted={submitted}>
-      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-4">{card.question}</p>
-      <div className="flex gap-1 flex-wrap justify-center">
-        {Array.from({ length: 11 }, (_, i) => (
-          <button
-            key={i}
-            onClick={() => handleSelect(i)}
-            disabled={disabled || submitted}
-            className={`min-w-[2.25rem] h-9 px-1 rounded-lg text-sm font-bold border transition-all duration-150 ${
-              submitted && selected === i
-                ? getSelectedColor(i)
-                : submitted
-                ? "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-default"
-                : `${getColor(i)} cursor-pointer`
-            }`}
-          >
-            {i}
-          </button>
-        ))}
+      <p className="text-[15px] font-semibold text-[var(--text-primary)] mb-4">{card.question}</p>
+      <div className="flex gap-[6px] flex-wrap justify-center">
+        {Array.from({ length: 11 }, (_, i) => {
+          const isSelected = submitted && selected === i;
+          const isDisabled = submitted && selected !== i;
+          return (
+            <motion.button
+              key={i}
+              onClick={() => handleSelect(i)}
+              disabled={disabled || submitted}
+              whileHover={!submitted ? { scale: 1.1, y: -2 } : undefined}
+              whileTap={!submitted ? { scale: 0.95 } : undefined}
+              transition={springs.bounce}
+              aria-label={`${i} 分`}
+              className={`relative min-w-[2.75rem] min-h-[44px] px-1 rounded-full text-sm font-bold transition-all duration-200${isSelected ? " pulse-ring" : ""}`}
+              style={{
+                background: isDisabled
+                  ? "var(--bg-surface-raised)"
+                  : getBgColor(i),
+                color: isDisabled
+                  ? "var(--text-tertiary)"
+                  : getTextColor(i),
+                boxShadow: isSelected
+                  ? `0 0 0 2px ${getTextColor(i)}40, var(--shadow-md)`
+                  : "none",
+                cursor: submitted ? "default" : "pointer",
+              }}
+            >
+              {i}
+            </motion.button>
+          );
+        })}
       </div>
-      <div className="flex justify-between mt-2 text-xs text-gray-400 dark:text-gray-500 px-1">
+      <div className="flex justify-between mt-2.5 text-[12px] text-[var(--text-tertiary)] px-1">
         <span>{lowLabel}</span>
         <span>{highLabel}</span>
       </div>
       {submitted && (
-        <p className="mt-3 text-xs text-center text-gray-500 dark:text-gray-400">
-          已选择 <span className="font-semibold text-gray-700 dark:text-gray-200">{selected}</span>
-        </p>
+        <motion.p
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-3 text-[12px] text-center text-[var(--text-secondary)]"
+        >
+          已选择 <span className="font-semibold text-[var(--text-primary)]">{selected}</span>
+        </motion.p>
       )}
     </CardWrapper>
   );
@@ -118,31 +138,48 @@ function RatingCard({ card, onSubmit, disabled }: InteractiveCardProps) {
 
   return (
     <CardWrapper submitted={submitted}>
-      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-4">{card.question}</p>
-      <div className="flex gap-2 justify-center">
+      <p className="text-[15px] font-semibold text-[var(--text-primary)] mb-4">{card.question}</p>
+      <div className="flex gap-1 justify-center">
         {Array.from({ length: maxStars }, (_, i) => {
           const starVal = i + 1;
           const filled = starVal <= display;
           return (
-            <button
+            <motion.button
               key={starVal}
               onClick={() => handleSelect(starVal)}
               onMouseEnter={() => !submitted && setHovered(starVal)}
               onMouseLeave={() => !submitted && setHovered(null)}
               disabled={disabled || submitted}
-              className={`text-3xl transition-transform duration-100 min-w-[44px] min-h-[44px] flex items-center justify-center ${
-                submitted ? "cursor-default" : "hover:scale-110 cursor-pointer"
-              } ${filled ? "text-yellow-400" : "text-gray-200 dark:text-gray-600"}`}
+              whileHover={!submitted ? { scale: 1.2, y: -2 } : undefined}
+              whileTap={!submitted ? { scale: 0.9 } : undefined}
+              transition={springs.bounce}
+              aria-label={`${starVal} / ${maxStars} 星`}
+              className={`min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors duration-150${submitted && selected === starVal ? " pulse-ring" : ""}`}
+              style={{ cursor: submitted ? "default" : "pointer" }}
             >
-              ★
-            </button>
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill={filled ? "#F59F00" : "none"}
+                stroke={filled ? "#F59F00" : "var(--border-subtle)"}
+                strokeWidth="1.5"
+                className="transition-all duration-200"
+              >
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+              </svg>
+            </motion.button>
           );
         })}
       </div>
       {submitted && (
-        <p className="mt-3 text-xs text-center text-gray-500 dark:text-gray-400">
-          已评分 <span className="font-semibold text-gray-700 dark:text-gray-200">{selected} / {maxStars}</span>
-        </p>
+        <motion.p
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-3 text-[12px] text-center text-[var(--text-secondary)]"
+        >
+          已评分 <span className="font-semibold text-[var(--text-primary)]">{selected} / {maxStars}</span>
+        </motion.p>
       )}
     </CardWrapper>
   );
@@ -164,24 +201,48 @@ function MultipleChoiceCard({ card, onSubmit, disabled }: InteractiveCardProps) 
 
   return (
     <CardWrapper submitted={submitted}>
-      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">{card.question}</p>
+      <p className="text-[15px] font-semibold text-[var(--text-primary)] mb-3">{card.question}</p>
       <div className="flex flex-col gap-2">
-        {options.map((opt) => (
-          <button
-            key={opt}
-            onClick={() => handleSelect(opt)}
-            disabled={disabled || submitted}
-            className={`w-full text-left px-4 py-3 rounded-xl text-sm border transition-all duration-150 min-h-[44px] ${
-              submitted && selected === opt
-                ? "bg-blue-600 text-white border-blue-600 font-medium"
-                : submitted
-                ? "bg-gray-50 dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-default"
-                : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer"
-            }`}
-          >
-            {opt}
-          </button>
-        ))}
+        {options.map((opt) => {
+          const isSelected = submitted && selected === opt;
+          const isDisabled = submitted && selected !== opt;
+          return (
+            <motion.button
+              key={opt}
+              onClick={() => handleSelect(opt)}
+              disabled={disabled || submitted}
+              whileHover={!submitted ? { x: 4 } : undefined}
+              whileTap={!submitted ? { scale: 0.98 } : undefined}
+              transition={springs.snappy}
+              className={`w-full text-left px-4 py-3 rounded-[var(--radius-sm)] text-[14px] border transition-all duration-200 min-h-[44px] flex items-center gap-3${isSelected ? " pulse-ring" : ""}`}
+              style={{
+                background: isSelected
+                  ? "var(--accent-primary)"
+                  : isDisabled
+                  ? "var(--bg-surface-raised)"
+                  : "var(--bg-surface)",
+                color: isSelected
+                  ? "white"
+                  : isDisabled
+                  ? "var(--text-tertiary)"
+                  : "var(--text-primary)",
+                borderColor: isSelected
+                  ? "var(--accent-primary)"
+                  : "var(--border-subtle)",
+                cursor: submitted ? "default" : "pointer",
+              }}
+            >
+              {/* Left accent bar on hover/select */}
+              <span
+                className="w-[3px] rounded-full self-stretch transition-all duration-200"
+                style={{
+                  background: isSelected ? "rgba(255,255,255,0.5)" : "transparent",
+                }}
+              />
+              {opt}
+            </motion.button>
+          );
+        })}
       </div>
     </CardWrapper>
   );
@@ -217,9 +278,9 @@ function MultiSelectCard({ card, onSubmit, disabled }: InteractiveCardProps) {
 
   return (
     <CardWrapper submitted={submitted}>
-      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">{card.question}</p>
+      <p className="text-[15px] font-semibold text-[var(--text-primary)] mb-1">{card.question}</p>
       {!submitted && (
-        <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+        <p className="text-[12px] text-[var(--text-tertiary)] mb-3">
           选择 {minSelect === maxSelect ? minSelect : `${minSelect}–${maxSelect}`} 项
         </p>
       )}
@@ -227,44 +288,83 @@ function MultiSelectCard({ card, onSubmit, disabled }: InteractiveCardProps) {
         {options.map((opt) => {
           const isSelected = selected.has(opt);
           return (
-            <button
+            <motion.button
               key={opt}
               onClick={() => toggleOption(opt)}
               disabled={disabled || submitted}
-              className={`w-full text-left px-4 py-3 rounded-xl text-sm border transition-all duration-150 flex items-center gap-3 min-h-[44px] ${
-                submitted && isSelected
-                  ? "bg-blue-600 text-white border-blue-600 font-medium"
+              whileTap={!submitted ? { scale: 0.98 } : undefined}
+              transition={springs.snappy}
+              className="w-full text-left px-4 py-3 rounded-[var(--radius-sm)] text-[14px] border transition-all duration-200 flex items-center gap-3 min-h-[44px]"
+              style={{
+                background: submitted && isSelected
+                  ? "var(--accent-primary)"
                   : submitted
-                  ? "bg-gray-50 dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-default"
+                  ? "var(--bg-surface-raised)"
                   : isSelected
-                  ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-400 font-medium"
-                  : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer"
-              }`}
+                  ? "var(--accent-primary-soft)"
+                  : "var(--bg-surface)",
+                color: submitted && isSelected
+                  ? "white"
+                  : submitted && !isSelected
+                  ? "var(--text-tertiary)"
+                  : isSelected
+                  ? "var(--accent-primary)"
+                  : "var(--text-primary)",
+                borderColor: isSelected && !submitted
+                  ? "var(--accent-primary)"
+                  : "var(--border-subtle)",
+                cursor: submitted ? "default" : "pointer",
+              }}
             >
-              <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                isSelected
-                  ? submitted ? "border-white bg-white" : "border-blue-500 bg-blue-500"
-                  : submitted ? "border-gray-300 dark:border-gray-500" : "border-gray-300 dark:border-gray-500"
-              }`}>
+              {/* Checkbox */}
+              <span
+                className="w-[18px] h-[18px] rounded-[4px] border-2 flex items-center justify-center flex-shrink-0 transition-all duration-200"
+                style={{
+                  borderColor: isSelected
+                    ? submitted ? "rgba(255,255,255,0.5)" : "var(--accent-primary)"
+                    : "var(--border-subtle)",
+                  background: isSelected
+                    ? submitted ? "rgba(255,255,255,0.2)" : "var(--accent-primary)"
+                    : "transparent",
+                }}
+              >
                 {isSelected && (
-                  <svg className={`w-2.5 h-2.5 ${submitted ? "text-blue-600" : "text-white"}`} fill="none" viewBox="0 0 10 8">
-                    <path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <motion.svg
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={springs.bounce}
+                    className="w-3 h-3"
+                    fill="none"
+                    viewBox="0 0 10 8"
+                    stroke="white"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M1 4l3 3 5-6" />
+                  </motion.svg>
                 )}
               </span>
               {opt}
-            </button>
+            </motion.button>
           );
         })}
       </div>
       {!submitted && (
-        <button
+        <motion.button
           onClick={handleSubmit}
           disabled={selected.size < minSelect}
-          className="mt-3 w-full py-3 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-h-[44px]"
+          whileTap={{ scale: 0.97 }}
+          transition={springs.snappy}
+          className="mt-3 w-full py-3 rounded-[var(--radius-xl)] text-[14px] font-semibold text-white transition-all duration-200 min-h-[44px]"
+          style={{
+            background: selected.size >= minSelect ? "var(--gradient-hero)" : "var(--bg-surface-raised)",
+            color: selected.size >= minSelect ? "white" : "var(--text-tertiary)",
+            cursor: selected.size < minSelect ? "not-allowed" : "pointer",
+          }}
         >
           确认
-        </button>
+        </motion.button>
       )}
     </CardWrapper>
   );
@@ -288,34 +388,52 @@ function YesNoCard({ card, onSubmit, disabled }: InteractiveCardProps) {
 
   return (
     <CardWrapper submitted={submitted}>
-      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-4">{card.question}</p>
+      <p className="text-[15px] font-semibold text-[var(--text-primary)] mb-4">{card.question}</p>
       <div className="flex gap-3">
-        <button
+        {/* Yes/primary button — gradient style */}
+        <motion.button
           onClick={() => handleSelect("yes")}
           disabled={disabled || submitted}
-          className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all duration-150 min-h-[44px] ${
-            submitted && selected === "yes"
-              ? "bg-green-600 text-white border-green-600"
+          whileHover={!submitted ? { y: -2, scale: 1.02 } : undefined}
+          whileTap={!submitted ? { scale: 0.96 } : undefined}
+          transition={springs.snappy}
+          className={`flex-1 py-3 rounded-[var(--radius-xl)] text-[14px] font-semibold transition-all duration-200 min-h-[44px]${submitted && selected === "yes" ? " pulse-ring" : ""}`}
+          style={{
+            background: submitted && selected === "yes"
+              ? "var(--accent-primary)"
               : submitted
-              ? "bg-gray-50 dark:bg-gray-700 text-gray-300 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-default"
-              : "bg-white dark:bg-gray-800 text-green-700 dark:text-green-400 border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 cursor-pointer"
-          }`}
+              ? "var(--bg-surface-raised)"
+              : "var(--gradient-hero)",
+            color: submitted && selected !== "yes" ? "var(--text-tertiary)" : "white",
+            boxShadow: !submitted ? "var(--shadow-md)" : "none",
+            cursor: submitted ? "default" : "pointer",
+          }}
         >
           {yesLabel}
-        </button>
-        <button
+        </motion.button>
+        {/* No/secondary button — outline style */}
+        <motion.button
           onClick={() => handleSelect("no")}
           disabled={disabled || submitted}
-          className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all duration-150 min-h-[44px] ${
-            submitted && selected === "no"
-              ? "bg-red-500 text-white border-red-500"
+          whileHover={!submitted ? { y: -1 } : undefined}
+          whileTap={!submitted ? { scale: 0.96 } : undefined}
+          transition={springs.snappy}
+          className={`flex-1 py-3 rounded-[var(--radius-xl)] text-[14px] font-medium border transition-all duration-200 min-h-[44px]${submitted && selected === "no" ? " pulse-ring" : ""}`}
+          style={{
+            background: submitted && selected === "no"
+              ? "var(--accent-primary)"
+              : "var(--bg-surface)",
+            color: submitted && selected === "no"
+              ? "white"
               : submitted
-              ? "bg-gray-50 dark:bg-gray-700 text-gray-300 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-default"
-              : "bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 border-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer"
-          }`}
+              ? "var(--text-tertiary)"
+              : "var(--text-secondary)",
+            borderColor: submitted && selected !== "no" ? "var(--border-subtle)" : "var(--border-interactive)",
+            cursor: submitted ? "default" : "pointer",
+          }}
         >
           {noLabel}
-        </button>
+        </motion.button>
       </div>
     </CardWrapper>
   );
@@ -358,34 +476,53 @@ function LikertCard({ card, onSubmit, disabled }: InteractiveCardProps) {
 
   return (
     <CardWrapper submitted={submitted}>
-      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-4">{card.question}</p>
-      <div className="flex gap-1.5 justify-center">
-        {Array.from({ length: points }, (_, i) => (
-          <button
-            key={i}
-            onClick={() => handleSelect(i)}
-            disabled={disabled || submitted}
-            title={labels[i]}
-            className={`flex-1 py-3 rounded-lg text-xs font-semibold border transition-all duration-150 min-h-[44px] ${
-              submitted && selected === i
-                ? "bg-blue-600 text-white border-blue-700"
-                : submitted
-                ? "bg-gray-50 dark:bg-gray-700 text-gray-300 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-default"
-                : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer"
-            }`}
-          >
-            {i + 1}
-          </button>
-        ))}
+      <p className="text-[15px] font-semibold text-[var(--text-primary)] mb-4">{card.question}</p>
+      <div className="flex gap-[6px] justify-center">
+        {Array.from({ length: points }, (_, i) => {
+          const isSelected = submitted && selected === i;
+          const isDisabled = submitted && selected !== i;
+          return (
+            <motion.button
+              key={i}
+              onClick={() => handleSelect(i)}
+              disabled={disabled || submitted}
+              whileHover={!submitted ? { scale: 1.08, y: -1 } : undefined}
+              whileTap={!submitted ? { scale: 0.95 } : undefined}
+              transition={springs.snappy}
+              title={labels[i]}
+              className={`flex-1 py-3 rounded-[var(--radius-xs)] text-[13px] font-semibold border transition-all duration-200 min-h-[44px]${isSelected ? " pulse-ring" : ""}`}
+              style={{
+                background: isSelected
+                  ? "var(--accent-primary)"
+                  : isDisabled
+                  ? "var(--bg-surface-raised)"
+                  : "var(--bg-surface)",
+                color: isSelected
+                  ? "white"
+                  : isDisabled
+                  ? "var(--text-tertiary)"
+                  : "var(--text-primary)",
+                borderColor: isSelected ? "var(--accent-primary)" : "var(--border-subtle)",
+                cursor: submitted ? "default" : "pointer",
+              }}
+            >
+              {i + 1}
+            </motion.button>
+          );
+        })}
       </div>
-      <div className="flex justify-between mt-1.5 text-xs text-gray-400 dark:text-gray-500 px-0.5">
+      <div className="flex justify-between mt-2 text-[12px] text-[var(--text-tertiary)] px-0.5">
         <span className="max-w-[40%] text-left">{labels[0]}</span>
         <span className="max-w-[40%] text-right">{labels[labels.length - 1]}</span>
       </div>
       {submitted && selected !== null && (
-        <p className="mt-3 text-xs text-center text-gray-500 dark:text-gray-400">
-          已选择 <span className="font-semibold text-gray-700 dark:text-gray-200">{labels[selected]}</span>
-        </p>
+        <motion.p
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-3 text-[12px] text-center text-[var(--text-secondary)]"
+        >
+          已选择 <span className="font-semibold text-[var(--text-primary)]">{labels[selected]}</span>
+        </motion.p>
       )}
     </CardWrapper>
   );
@@ -412,21 +549,33 @@ function SliderCard({ card, onSubmit, disabled }: InteractiveCardProps) {
 
   return (
     <CardWrapper submitted={submitted}>
-      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-4">{card.question}</p>
+      <p className="text-[15px] font-semibold text-[var(--text-primary)] mb-4">{card.question}</p>
       <div className="px-2">
-        <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500 mb-1">
+        <div className="flex justify-between text-[12px] text-[var(--text-tertiary)] mb-2">
           <span>{min}{unit}</span>
-          <span className="text-base font-bold text-blue-600 dark:text-blue-400">
+          <span
+            className="text-[18px] font-bold tabular-nums"
+            style={{ color: "var(--accent-primary)" }}
+          >
             {value}{unit}
           </span>
           <span>{max}{unit}</span>
         </div>
-        <div className="relative h-6 flex items-center">
-          <div className="absolute inset-x-0 h-2 rounded-full bg-gray-200 dark:bg-gray-600" />
+        <div className="relative h-8 flex items-center">
+          {/* Track background */}
           <div
-            className="absolute left-0 h-2 rounded-full bg-blue-500"
-            style={{ width: `${pct}%` }}
+            className="absolute inset-x-0 h-[6px] rounded-full"
+            style={{ background: "var(--bg-surface-raised)" }}
           />
+          {/* Track fill */}
+          <div
+            className="absolute left-0 h-[6px] rounded-full transition-all duration-100"
+            style={{
+              width: `${pct}%`,
+              background: "var(--gradient-hero)",
+            }}
+          />
+          {/* Native range input */}
           <input
             type="range"
             min={min}
@@ -435,22 +584,29 @@ function SliderCard({ card, onSubmit, disabled }: InteractiveCardProps) {
             value={value}
             onChange={(e) => !submitted && setValue(Number(e.target.value))}
             disabled={disabled || submitted}
-            className="absolute inset-x-0 w-full h-2 appearance-none bg-transparent cursor-pointer disabled:cursor-default [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:shadow-md"
+            className="absolute inset-x-0 w-full h-[6px] appearance-none bg-transparent cursor-pointer disabled:cursor-default"
           />
         </div>
       </div>
       {!submitted && (
-        <button
+        <motion.button
           onClick={handleSubmit}
-          className="mt-4 w-full py-3 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors min-h-[44px]"
+          whileTap={{ scale: 0.97 }}
+          transition={springs.snappy}
+          className="mt-4 w-full py-3 rounded-[var(--radius-xl)] text-[14px] font-semibold text-white transition-colors min-h-[44px]"
+          style={{ background: "var(--gradient-hero)" }}
         >
           确认
-        </button>
+        </motion.button>
       )}
       {submitted && (
-        <p className="mt-3 text-xs text-center text-gray-500 dark:text-gray-400">
-          已选择 <span className="font-semibold text-gray-700 dark:text-gray-200">{value}{unit}</span>
-        </p>
+        <motion.p
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-3 text-[12px] text-center text-[var(--text-secondary)]"
+        >
+          已选择 <span className="font-semibold text-[var(--text-primary)]">{value}{unit}</span>
+        </motion.p>
       )}
     </CardWrapper>
   );
@@ -466,15 +622,20 @@ function CardWrapper({
   submitted: boolean;
 }) {
   return (
-    <div
+    <motion.div
       dir="auto"
-      className={`mt-2 rounded-2xl border px-5 py-4 w-full transition-all duration-300 ${
-        submitted
-          ? "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 opacity-80"
-          : "border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-800 shadow-md"
-      }`}
+      variants={cardExpandVariants}
+      initial="initial"
+      animate="animate"
+      className="mt-2 rounded-[var(--radius-lg)] border px-5 py-4 w-full transition-all duration-300"
+      style={{
+        borderColor: submitted ? "var(--border-subtle)" : "var(--border-interactive)",
+        background: submitted ? "var(--bg-surface-raised)" : "var(--bg-surface)",
+        boxShadow: submitted ? "none" : "var(--shadow-card)",
+        opacity: submitted ? 0.85 : 1,
+      }}
     >
       {children}
-    </div>
+    </motion.div>
   );
 }

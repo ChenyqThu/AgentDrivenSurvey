@@ -7,6 +7,7 @@ export interface ConversationState {
 
   themesExplored: ThemeProgress[];  // derived from extractedData
   currentTopicDepth: number;        // consecutive depth on current topic
+  _lastSectionId?: string;          // internal: last section touched, for depth tracking
 
   respondentInfo: Record<string, unknown>;  // preserved, extended for import
   startedAt: string;

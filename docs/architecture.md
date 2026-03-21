@@ -179,7 +179,8 @@ AI occasionally doesn't end with a question → conversation stalls → user doe
 - Sends `{ isNudge: true }` to backend
 - Backend: no user message saved, injects self-check prompt as user turn
 - AI sends natural follow-up (1-2 sentences)
-- Max 2 nudges per session, paused when tab hidden
+- Max 3 nudges per session, paused when tab hidden
+- Not triggered while an interactive card is pending (user is interacting with the card)
 
 ### 7.3 Technical Detail
 Nudge creates consecutive assistant messages. `mergeConsecutiveMessages()` handles Anthropic's alternating-role requirement.
@@ -228,9 +229,10 @@ admin_users ← surveys ← sessions ← messages
 
 ### 10.1 Chat UI
 - **Inline typing indicator**: Loading animation shows inside AI message bubble (not fixed at bottom), replaced by streaming text when first token arrives
+- **Streaming cursor**: Injected inline inside the last `<p>` element so it sits on the same line as text (not on a new line below)
+- **Interactive cards**: GPU-accelerated entrance animation (`opacity + y + scale`), no height animation to avoid layout reflow jank. Rendered inline in message flow, disabled after submission
 - **New Chat button**: Header restart button creates fresh session, replaces `?new=1` URL hack
 - **Welcome screen**: Warm design with trust signals (duration, confidentiality, no pressure)
-- **Interactive cards**: Rendered inline in message flow, disabled after submission
 
 ### 10.2 Session Lifecycle
 ```

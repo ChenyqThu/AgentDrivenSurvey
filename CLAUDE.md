@@ -70,8 +70,18 @@ System prompt 由 5 个独立模块组装（guardrails → soul → strategy →
 ### 用户信息导入
 URL 参数 `/s/{surveyId}?uid=xxx&profile=<base64json>` 支持导入已知用户信息，AI 可跳过基础问题直接深入
 
+### 收尾流程（Closing Sequence）
+stage=`closing` 时 context.ts 指引 AI 按顺序执行：
+1. NPS 卡片（产品推荐意愿）
+2. 开放式改进建议
+3. AI 总结 + 请用户确认
+4. 感谢 + 访谈体验评分卡片（rating 1-5，同一条消息）
+5. 调用 `conclude_interview` → 前端显示完成卡片
+
+Card interaction 在 closing 阶段时，engine.ts 注入提示让 AI 继续收尾步骤。
+
 ### 对话健康（Nudge 机制）
-前端 45s 空闲检测 → `isNudge: true` 请求 → 后端注入自检提示 → AI 自然续话（不存用户消息）→ 每会话最多 2 次
+前端 45s 空闲检测 → `isNudge: true` 请求 → 后端注入自检提示 → AI 自然续话（不存用户消息）→ 每会话最多 3 次；最后一条消息含交互卡片时跳过
 
 ### 其他决策
 - **两阶段 Agent 构建**：Schema Agent（结构化问卷）和 Config Agent（人设/技能/行为）独立运行，均使用 Opus 模型

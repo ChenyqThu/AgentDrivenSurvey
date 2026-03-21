@@ -5,6 +5,7 @@ import { getProvider, DEFAULT_MODEL } from '@/lib/llm/client';
 import type { StreamEvent } from '@/lib/llm/provider';
 import { interviewTools } from '@/lib/conversation/tools';
 import { buildSystemPrompt } from '@/lib/conversation/prompt-builder';
+import { logger } from '@/lib/logger';
 import {
   createInitialState,
   computeTargetRounds,
@@ -21,6 +22,25 @@ import type { LLMConfig } from '@/lib/llm/config';
 // SSE encoding helper
 function encodeSSE(data: unknown): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+/**
+ * Strip duplicated prefix from continuation-round LLM output.
+ * When asking the LLM to add a question to its previous response, it sometimes
+ * re-echoes the opening sentence before the question. This strips the duplicate.
+ */
+function deduplicateContinuation(accumulated: string, newText: string): string {
+  if (!accumulated.trim() || !newText.trim()) return newText;
+  const stripped = newText.trimStart();
+  // Try increasingly shorter prefixes; if any appear in the accumulated text, strip them
+  for (let len = Math.min(stripped.length, 100); len >= 20; len--) {
+    const prefix = stripped.slice(0, len);
+    if (accumulated.includes(prefix)) {
+      const dupEnd = newText.indexOf(prefix) + len;
+      return newText.slice(dupEnd).replace(/^[\s，。！？!?,、]+/, '').trimStart();
+    }
+  }
+  return newText;
 }
 
 /**
@@ -105,7 +125,7 @@ function triggerNotionSync(surveyId: string, sessionId: string, settings: Survey
   if (!settings.notionConfig?.autoSync) return;
   import('@/lib/notion/sync')
     .then(({ syncSession }) => syncSession(surveyId, sessionId))
-    .catch((err) => console.error('Notion auto-sync failed:', err));
+    .catch((err) => logger.error('notion.sync.failed', { surveyId, sessionId, error: err instanceof Error ? err.message : String(err) }));
 }
 
 export async function createSession(
@@ -184,6 +204,8 @@ export async function handleMessage(
   isCardInteraction = false,
   isNudge = false,
 ): Promise<ReadableStream<Uint8Array>> {
+  logger.info('message.received', { sessionId, isNudge, isAutoStart: userMessage.trim() === '__START__', isCardInteraction });
+
   // 1. Load session with survey
   const data = await getSession(sessionId);
   if (!data) {
@@ -191,13 +213,25 @@ export async function handleMessage(
   }
   const { session, messages: history, survey } = data;
 
-  // 1b. Security: check for prompt injection (skip for auto-start, nudge, card interactions)
+  // 1b. Auto-start guard: skip if opening message already exists
   const isAutoStart = userMessage.trim() === '__START__';
+  if (isAutoStart && history.some((m) => m.role === 'assistant')) {
+    // Opening already generated — return empty stream to avoid duplicate
+    return new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encodeSSE({ type: 'done' }));
+        controller.close();
+      },
+    });
+  }
+
+  // 1c. Security: check for prompt injection (skip for auto-start, nudge, card interactions)
   const injectionRisk = (!isAutoStart && !isNudge && !isCardInteraction)
     ? detectInjectionRisk(userMessage)
     : 'safe' as const;
 
   if (injectionRisk === 'blocked') {
+    logger.warn('injection.blocked', { sessionId });
     // Return a fixed response without calling the LLM
     const nextSeq = history.length > 0 ? history[history.length - 1].sequence + 1 : 1;
     // Save user + blocked response in parallel, then update session
@@ -214,6 +248,9 @@ export async function handleMessage(
         controller.close();
       },
     });
+  }
+  if (injectionRisk === 'suspicious') {
+    logger.warn('injection.suspicious', { sessionId });
   }
   // 'suspicious' is handled later by injecting a warning into the LLM context
 
@@ -298,21 +335,48 @@ export async function handleMessage(
 
   let llmUserMessage: string;
   if (isNudge) {
-    llmUserMessage = `[System: The user has been quiet for a while. Review your last message — did it end with a clear question or invitation? If not, send a natural follow-up that opens a new angle. Keep it short (1-2 sentences), warm. Do NOT mention the pause. Just naturally continue as if you thought of something else.]`;
+    llmUserMessage = `[External session monitor — not a user message. The user has been inactive for about a minute. Review the conversation and decide your next move:
+
+- If your last message already ended with a clear question: send a brief, warm check-in (1 sentence). Something casual like "No rush!" or "Take your time 😊". Do NOT repeat or add another question.
+- If your last message did NOT end with a question: that may be why the conversation stalled. Send a natural follow-up (1-2 sentences) that re-engages with a new angle or question.
+- If you've already sent a check-in earlier in this conversation: do NOT check in again. Instead, share a brief thought or observation to keep things warm, or just wait silently (respond with nothing).
+
+Keep it to 1-2 sentences max. Be natural — the user should not feel monitored or pressured.]`;
   } else if (isAutoStart) {
-    llmUserMessage = '[System: The user just opened the survey. Deliver your opening introduction in English as described in the instructions. Do NOT ask any survey questions yet.]';
+    llmUserMessage = '[System: The user just opened the survey. You MUST do two things:\n1. Deliver your opening introduction in ENGLISH (not Chinese, not any other language unless the user has already indicated a preference)\n2. You MUST call the render_interactive tool with card_type "yes_no", question "Ready to begin?", config {yesLabel: "Let\'s go! ✨", noLabel: "Give me a moment"}\n\nDo NOT just mention a button in text — you must actually call the tool. Do NOT ask any survey questions yet.]';
   } else if (isCardInteraction) {
-    llmUserMessage = formatCardInteractionMessage(userMessage);
+    const cardMsg = formatCardInteractionMessage(userMessage);
+    // In closing stage, remind the AI to continue the closing steps after acknowledging the card
+    llmUserMessage = state.stage === 'closing'
+      ? `${cardMsg}\n\n[System: You are in the closing stage. After acknowledging this response, continue the closing protocol: ask one open-ended improvement suggestion if you haven't yet, then summarize the key findings, then call conclude_interview.]`
+      : cardMsg;
   } else {
     llmUserMessage = suspiciousWarning + userMessage;
   }
 
-  // If this is the user's first real message (no prior messages in history),
-  // prepend context so the AI knows the welcome was already shown
-  const isFirstRealMessage = !isAutoStart && !isCardInteraction && !isNudge && history.length === 0;
-  const contextualMessage = isFirstRealMessage
-    ? `[System context: The user has already seen a welcome message introducing you as Ann from the Omada team. They know this is a 10-15 min conversational survey about Omada App. They may have chosen a language preference. Now begin the actual interview based on their response below.]\n\nUser: ${llmUserMessage}`
-    : llmUserMessage;
+  // Auto-detect language from first real user message
+  const isFirstRealMessage = !isAutoStart && !isCardInteraction && !isNudge && history.length <= 2;
+
+  function detectLanguage(text: string): string | null {
+    if (/[\u4e00-\u9fff]/.test(text)) return 'Chinese';
+    if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) return 'Japanese';
+    if (/[\uac00-\ud7af]/.test(text)) return 'Korean';
+    return null; // Default English, no hint needed
+  }
+
+  let contextualMessage: string;
+  if (isFirstRealMessage) {
+    const detectedLang = detectLanguage(userMessage);
+    const langHint = detectedLang
+      ? `[System: The user appears to prefer ${detectedLang}. Switch to ${detectedLang} immediately and maintain it throughout, including all card text. Do NOT ask them to confirm — just switch.]\n\n`
+      : '';
+    const welcomeContext = history.length === 0
+      ? `[System context: The user has already seen a welcome message introducing you as Ann from the Omada team. They know this is a 10-15 min conversational survey about Omada App. They may have chosen a language preference. Now begin the actual interview based on their response below.]\n\n`
+      : '';
+    contextualMessage = `${langHint}${welcomeContext}User: ${llmUserMessage}`;
+  } else {
+    contextualMessage = llmUserMessage;
+  }
 
   const rawLlmMessages = history.map((m) => ({
     role: m.role as 'user' | 'assistant',
@@ -394,34 +458,37 @@ export async function handleMessage(
             const confidence = (input.confidence as number) ?? 0;
             const sourceId = (savedUserMsgId === 'auto-start' || savedUserMsgId === 'nudge') ? null : savedUserMsgId;
 
-            const [existing] = await db
-              .select({ id: extractedData.id })
-              .from(extractedData)
-              .where(
-                and(
-                  eq(extractedData.sessionId, sessionId),
-                  eq(extractedData.sectionId, sectionId),
-                  eq(extractedData.fieldKey, fieldKey)
+            await db.transaction(async (tx) => {
+              const [existing] = await tx
+                .select({ id: extractedData.id })
+                .from(extractedData)
+                .where(
+                  and(
+                    eq(extractedData.sessionId, sessionId),
+                    eq(extractedData.sectionId, sectionId),
+                    eq(extractedData.fieldKey, fieldKey)
+                  )
                 )
-              )
-              .limit(1);
+                .limit(1);
 
-            if (existing) {
-              await db
-                .update(extractedData)
-                .set({ fieldValue: value, confidence, sourceMessageId: sourceId })
-                .where(eq(extractedData.id, existing.id));
-            } else {
-              await db.insert(extractedData).values({
-                sessionId,
-                surveyId: session.surveyId,
-                sectionId,
-                fieldKey,
-                fieldValue: value,
-                confidence,
-                sourceMessageId: sourceId,
-              });
-            }
+              if (existing) {
+                await tx
+                  .update(extractedData)
+                  .set({ fieldValue: value, confidence, sourceMessageId: sourceId })
+                  .where(eq(extractedData.id, existing.id));
+              } else {
+                await tx.insert(extractedData).values({
+                  sessionId,
+                  surveyId: session.surveyId,
+                  sectionId,
+                  fieldKey,
+                  fieldValue: value,
+                  confidence,
+                  sourceMessageId: sourceId,
+                });
+              }
+            });
+            logger.info('tool.extract_data', { sessionId, sectionId, fieldKey, confidence });
           } else if (block.name === 'conclude_interview') {
             const reason = (input.reason as string) ?? 'ai_concluded';
             const summary = (input.summary as string) ?? undefined;
@@ -451,7 +518,7 @@ export async function handleMessage(
 
             triggerNotionSync(session.surveyId, sessionId, settings);
 
-            console.log(`[conclude_interview] session=${sessionId} reason="${reason}" summary="${summary ?? 'none'}"`);
+            logger.info('tool.conclude_interview', { sessionId, reason });
           } else if (block.name === 'render_interactive') {
             const cardId = `card_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
             const card = {
@@ -462,6 +529,7 @@ export async function handleMessage(
               config: (input.config as Record<string, unknown> | undefined) ?? {},
             };
             controller.enqueue(encodeSSE({ type: 'interactive_card', card }));
+            logger.info('tool.render_interactive', { sessionId, cardType: input.card_type as string });
           }
 
           delete toolBlocks[idx];
@@ -481,6 +549,9 @@ export async function handleMessage(
       try {
         let currentMessages = [...llmMessages];
         let round = 0;
+        const llmStart = Date.now();
+
+        logger.info('llm.stream.start', { sessionId, round: state.roundCount, stage: state.stage });
 
         while (round < MAX_CONTINUATION_ROUNDS) {
           round++;
@@ -499,12 +570,35 @@ export async function handleMessage(
             currentState,
           );
 
-          allAssistantText += result.text;
+          // Dedup continuation rounds: LLM sometimes re-echoes the opening sentence
+          const deduped = round > 1
+            ? deduplicateContinuation(allAssistantText, result.text)
+            : result.text;
+          allAssistantText += deduped;
           currentState = result.state;
 
-          // Only continue if the LLM produced NO text at all (tools-only response)
-          if (result.text.trim()) {
-            break;
+          // If text was produced, check if it ends with a question
+          if (deduped.trim()) {
+            // Skip question-check for nudge, auto-start, and card interactions — these have their own flow
+            if (isNudge || isAutoStart || isCardInteraction) {
+              break;
+            }
+            // Check for question mark near the end — allow trailing emoji, punctuation, whitespace
+            const endsWithQuestion = /[?？][\s\S]{0,10}$/.test(deduped.trim());
+            if (endsWithQuestion || round >= MAX_CONTINUATION_ROUNDS - 1) {
+              // Good — AI asked a question, or we've hit the limit
+              break;
+            }
+            // AI produced text but forgot to ask a question — ask for ONLY the question, no preamble
+            currentMessages.push({
+              role: 'assistant' as const,
+              content: result.text,
+            });
+            currentMessages.push({
+              role: 'user' as const,
+              content: '[INSTRUCTION: Output ONLY a single bare question sentence to continue the interview. No preamble, no repetition, no acknowledgment — start the response directly with the question word itself.]',
+            });
+            continue;
           }
 
           if (result.hadToolCalls) {
@@ -514,7 +608,7 @@ export async function handleMessage(
             });
             currentMessages.push({
               role: 'user' as const,
-              content: '[System: Continue the conversation. Your previous response did not end with a question for the user. You MUST ask a follow-up question or naturally transition to the next topic. Never leave the conversation hanging.]',
+              content: '[INSTRUCTION: Output ONLY a single bare question sentence to continue the conversation after the above interaction. No preamble, no repetition — start directly with the question word itself.]',
             });
             continue;
           }
@@ -522,20 +616,32 @@ export async function handleMessage(
           break;
         }
 
-        // Save assistant message
-        const assistantSeq = isAutoStart ? 1 : nextSeq + (isNudge ? 0 : 1);
-        await db.insert(messages).values({
-          sessionId,
-          role: 'assistant',
-          content: allAssistantText,
-          sequence: assistantSeq,
-        });
+        logger.info('llm.stream.complete', { sessionId, durationMs: Date.now() - llmStart, continuationRounds: round, textLength: allAssistantText.length });
 
-        // Update state and last_active_at
-        await db
-          .update(sessions)
-          .set({ state: currentState, lastActiveAt: new Date() })
-          .where(eq(sessions.id, sessionId));
+        // Save assistant message and update state atomically
+        const assistantSeq = isAutoStart ? 1 : nextSeq + (isNudge ? 0 : 1);
+        await db.transaction(async (tx) => {
+          // Race condition guard for auto-start: two concurrent __START__ requests can both
+          // pass the early guard before either saves. Check inside the transaction.
+          if (isAutoStart) {
+            const [existing] = await tx
+              .select({ id: messages.id })
+              .from(messages)
+              .where(and(eq(messages.sessionId, sessionId), eq(messages.role, 'assistant')))
+              .limit(1);
+            if (existing) return; // Another request already saved the opening
+          }
+          await tx.insert(messages).values({
+            sessionId,
+            role: 'assistant',
+            content: allAssistantText,
+            sequence: assistantSeq,
+          });
+          await tx
+            .update(sessions)
+            .set({ state: currentState, lastActiveAt: new Date() })
+            .where(eq(sessions.id, sessionId));
+        });
 
         // Check round-based completion (if not already completed by conclude_interview)
         if (!currentState.completionReason && isComplete(currentState)) {
@@ -544,6 +650,8 @@ export async function handleMessage(
             .update(sessions)
             .set({ state: currentState, status: 'completed', completedAt: new Date() })
             .where(eq(sessions.id, sessionId));
+
+          logger.info('interview.completed', { sessionId, reason: 'rounds_reached' });
 
           controller.enqueue(encodeSSE({
             type: 'session_completed',
@@ -555,6 +663,7 @@ export async function handleMessage(
 
         controller.enqueue(encodeSSE({ type: 'done' }));
       } catch (err) {
+        logger.error('message.error', { sessionId, error: err instanceof Error ? err.message : String(err) });
         controller.error(err);
         return;
       }

@@ -7,6 +7,7 @@ import {
   integer,
   real,
   unique,
+  index,
 } from 'drizzle-orm/pg-core';
 
 export const adminUsers = pgTable('admin_users', {
@@ -44,7 +45,10 @@ export const sessions = pgTable('sessions', {
   startedAt: timestamp('started_at', { mode: 'date' }).notNull().defaultNow(),
   completedAt: timestamp('completed_at', { mode: 'date' }),
   lastActiveAt: timestamp('last_active_at', { mode: 'date' }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('sessions_survey_id_idx').on(table.surveyId),
+  index('sessions_last_active_idx').on(table.lastActiveAt),
+]);
 
 export const messages = pgTable('messages', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -55,7 +59,10 @@ export const messages = pgTable('messages', {
   content: text('content').notNull(),
   sequence: integer('sequence').notNull(),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('messages_session_id_idx').on(table.sessionId),
+  index('messages_session_seq_idx').on(table.sessionId, table.sequence),
+]);
 
 export const extractedData = pgTable(
   'extracted_data',
@@ -74,9 +81,10 @@ export const extractedData = pgTable(
     sourceMessageId: uuid('source_message_id').references(() => messages.id),
     extractedAt: timestamp('extracted_at', { mode: 'date' }).notNull().defaultNow(),
   },
-  (table) => ({
-    sessionSectionFieldUnique: unique().on(table.sessionId, table.sectionId, table.fieldKey),
-  }),
+  (table) => [
+    unique().on(table.sessionId, table.sectionId, table.fieldKey),
+    index('extracted_data_session_id_idx').on(table.sessionId),
+  ],
 );
 
 export const analysisReports = pgTable('analysis_reports', {

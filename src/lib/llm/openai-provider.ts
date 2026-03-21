@@ -6,6 +6,7 @@ import type {
   GenerateResult,
   LLMProvider,
 } from './provider';
+import { withRetry } from '@/lib/llm/retry';
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
@@ -70,27 +71,6 @@ interface OpenAIResponse {
     prompt_tokens: number;
     completion_tokens: number;
   };
-}
-
-async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-      const status = (err as { status?: number }).status;
-      if (status !== undefined && (status === 429 || status >= 500)) {
-        if (attempt < maxRetries) {
-          const delay = Math.pow(2, attempt) * 1000;
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          continue;
-        }
-      }
-      throw err;
-    }
-  }
-  throw lastError;
 }
 
 function buildOpenAIMessages(systemPrompt: string, messages: ChatMessage[]): OpenAIMessage[] {

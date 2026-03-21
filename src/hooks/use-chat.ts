@@ -25,8 +25,8 @@ function generateId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-const IDLE_TIMEOUT_MS = 45_000;  // 45 seconds
-const MAX_NUDGES = 2;            // max 2 nudges per session
+const IDLE_TIMEOUT_MS = 60_000;  // 60 seconds
+const MAX_NUDGES = 3;            // max 3 nudges per session
 
 export function useChat(sessionId: string): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -41,6 +41,9 @@ export function useChat(sessionId: string): UseChatReturn {
   const nudgeCountRef = useRef(0);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionCompletedRef = useRef(false);
+  const userHasInteractedRef = useRef(false); // Only nudge after user has sent at least one real message
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   const clearIdleTimer = useCallback(() => {
     if (idleTimerRef.current) {
@@ -56,10 +59,16 @@ export function useChat(sessionId: string): UseChatReturn {
   }, [clearIdleTimer]);
 
   const sendNudge = useCallback(async () => {
+    // Check if last AI message has unsubmitted interactive cards — don't nudge, user is interacting
+    const lastMsg = messagesRef.current[messagesRef.current.length - 1];
+    const hasPendingCard = lastMsg?.role === "assistant" && (lastMsg.cards?.length ?? 0) > 0;
+
     if (
       loadingRef.current ||
       nudgeCountRef.current >= MAX_NUDGES ||
-      sessionCompletedRef.current
+      sessionCompletedRef.current ||
+      !userHasInteractedRef.current || // Don't nudge before user has sent any message
+      hasPendingCard // Don't nudge while user is looking at an interactive card
     ) return;
 
     nudgeCountRef.current++;
@@ -138,6 +147,11 @@ export function useChat(sessionId: string): UseChatReturn {
 
       const isAutoStart = content.trim() === "__START__";
 
+      // Mark user as having interacted (enables nudge mechanism)
+      if (!isAutoStart) {
+        userHasInteractedRef.current = true;
+      }
+
       // Don't show __START__ as a user message bubble
       if (!isAutoStart) {
         const userMessage: ChatMessage = {
@@ -208,8 +222,9 @@ export function useChat(sessionId: string): UseChatReturn {
     async (cardId: string, cardType: string, value: unknown) => {
       if (loadingRef.current) return;
 
-      // User activity: clear idle timer
+      // User activity: clear idle timer + mark as interacted
       clearIdleTimer();
+      userHasInteractedRef.current = true;
 
       const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
       const interactionMessage: ChatMessage = {
@@ -294,65 +309,109 @@ async function consumeSSE(
   const decoder = new TextDecoder();
   let buffer = "";
   let accumulated = "";
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingCards: CardData[] = [];
+  let displayedText = "";
+  const FLUSH_INTERVAL = 30; // ms — smooth character reveal
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const raw = line.slice(6).trim();
-      if (!raw || raw === "[DONE]") continue;
-
-      try {
-        const event = JSON.parse(raw);
-
-        if (event.type === "session_completed") {
-          onCompleted?.();
+  // Flush accumulated text + cards to React state with throttle
+  function scheduleFlush() {
+    if (flushTimer !== null) return;
+    flushTimer = setTimeout(() => {
+      flushTimer = null;
+      // Reveal text progressively — show up to 8 more chars per tick for smoothness
+      const target = accumulated;
+      if (displayedText.length < target.length) {
+        const charsToAdd = Math.min(8, target.length - displayedText.length);
+        displayedText = target.slice(0, displayedText.length + charsToAdd);
+        // Schedule next tick if more text to reveal
+        if (displayedText.length < target.length) {
+          scheduleFlush();
         }
+      } else {
+        displayedText = target;
+      }
 
-        if (event.type === "done") {
-          break;
-        }
+      const currentText = displayedText;
+      const currentCards = pendingCards.length > 0 ? [...pendingCards] : null;
+      if (currentCards) pendingCards = [];
 
-        if (event.type === "text" && typeof event.content === "string") {
-          accumulated += event.content;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, content: accumulated } : m
-            )
-          );
-        }
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? {
+                ...m,
+                content: currentText,
+                ...(currentCards ? { cards: [...(m.cards ?? []), ...currentCards] } : {}),
+              }
+            : m
+        )
+      );
+    }, FLUSH_INTERVAL);
+  }
 
-        if (
-          event.type === "content_block_delta" &&
-          event.delta?.type === "text_delta"
-        ) {
-          accumulated += event.delta.text ?? "";
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, content: accumulated } : m
-            )
-          );
-        }
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-        if (event.type === "interactive_card" && event.card) {
-          const card = event.card as CardData;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId
-                ? { ...m, cards: [...(m.cards ?? []), card] }
-                : m
-            )
-          );
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const raw = line.slice(6).trim();
+        if (!raw || raw === "[DONE]") continue;
+
+        try {
+          const event = JSON.parse(raw);
+
+          if (event.type === "session_completed") {
+            onCompleted?.();
+          }
+
+          if (event.type === "done") {
+            break;
+          }
+
+          if (event.type === "text" && typeof event.content === "string") {
+            accumulated += event.content;
+            scheduleFlush();
+          }
+
+          if (
+            event.type === "content_block_delta" &&
+            event.delta?.type === "text_delta"
+          ) {
+            accumulated += event.delta.text ?? "";
+            scheduleFlush();
+          }
+
+          if (event.type === "interactive_card" && event.card) {
+            pendingCards.push(event.card as CardData);
+            scheduleFlush();
+          }
+        } catch {
+          // non-JSON line, skip
         }
-      } catch {
-        // non-JSON line, skip
       }
     }
+  } finally {
+    // Final flush — show all remaining text immediately
+    if (flushTimer !== null) clearTimeout(flushTimer);
+    const finalText = accumulated;
+    const finalCards = pendingCards.length > 0 ? [...pendingCards] : null;
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === assistantId
+          ? {
+              ...m,
+              content: finalText,
+              ...(finalCards ? { cards: [...(m.cards ?? []), ...finalCards] } : {}),
+            }
+          : m
+      )
+    );
   }
 }

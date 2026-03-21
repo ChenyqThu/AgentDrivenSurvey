@@ -2,10 +2,13 @@
 
 import { useEffect, useState, useMemo, useCallback, use } from "react";
 import { useSearchParams } from "next/navigation";
+import { motion, AnimatePresence, MotionConfig } from "motion/react";
 import { ChatContainer } from "@/components/chat/chat-container";
 import { WelcomeScreen } from "@/components/chat/welcome-screen";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import type { ChatMessage } from "@/hooks/use-chat";
+import { springs, durations } from "@/lib/motion";
+import { AvatarOrb } from "@/components/chat/avatar-orb";
 
 interface SurveyInfo {
   id: string;
@@ -161,93 +164,148 @@ export default function SurveyPage({
     }
   }
 
+  // ── Error state ──
   if (loadError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
-        <div className="text-center max-w-sm">
-          <div className="text-4xl mb-4">⚠️</div>
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Survey Unavailable</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{loadError}</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center chat-bg px-4">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: durations.slow }}
+          className="text-center max-w-sm"
+        >
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5"
+            style={{ background: "var(--accent-danger-soft)" }}
+          >
+            <svg className="w-7 h-7" style={{ color: "var(--accent-danger)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h1 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Survey Unavailable</h1>
+          <p className="text-[14px] text-[var(--text-secondary)]">{loadError}</p>
+        </motion.div>
       </div>
     );
   }
 
+  // ── Loading state ──
   if (phase === "loading" || !survey) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500 text-sm">
-          <SpinnerIcon className="w-4 h-4 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center chat-bg">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex items-center gap-3 text-[var(--text-tertiary)] text-[14px]"
+        >
+          <SpinnerIcon className="w-5 h-5 animate-spin" />
           Loading survey…
-        </div>
+        </motion.div>
       </div>
     );
   }
 
+  // ── Inactive survey ──
   if (survey.status !== "active") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
-        <div className="text-center max-w-sm">
-          <div className="text-4xl mb-4">🔒</div>
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Survey Not Available</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+      <div className="min-h-screen flex items-center justify-center chat-bg px-4">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: durations.slow }}
+          className="text-center max-w-sm"
+        >
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5"
+            style={{ background: "var(--accent-warm-soft)" }}
+          >
+            <svg className="w-7 h-7" style={{ color: "var(--accent-warm)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h1 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Survey Not Available</h1>
+          <p className="text-[14px] text-[var(--text-secondary)]">
             This survey is currently <span className="font-medium">{survey.status}</span>.
           </p>
-        </div>
+        </motion.div>
       </div>
     );
   }
 
-  if (phase === "welcome") {
-    return (
-      <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950">
-        <WelcomeScreen
-          title={survey.title}
-          description={survey.description}
-          onStart={handleStart}
-        />
-      </div>
-    );
-  }
-
-  if (phase === "preparing") {
-    return (
-      <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950">
-        {/* Header matching chat style */}
-        <div className="flex-shrink-0 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3">
-          <div className="max-w-3xl mx-auto flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-sm">
-              <svg className="w-4.5 h-4.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-            </div>
-            <div>
-              <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight">
-                {survey.title}
-              </p>
-            </div>
-          </div>
-        </div>
-        {/* Typing indicator in the message area */}
-        <div className="flex-1 flex flex-col max-w-3xl w-full mx-auto pt-6">
-          <TypingIndicator />
-        </div>
-      </div>
-    );
-  }
-
-  // phase === "chat"
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950">
-      <ChatContainer
-        key={sessionId}
-        sessionId={sessionId!}
-        surveyTitle={survey.title}
-        surveyDescription={survey.description}
-        initialMessages={initialMessages}
-        onRestart={handleRestart}
-      />
+    <MotionConfig reducedMotion="user">
+    <div className="flex flex-col h-screen chat-bg">
+      <AnimatePresence mode="wait">
+        {phase === "welcome" && (
+          <motion.div
+            key="welcome"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: durations.normal }}
+            className="flex-1 flex flex-col"
+          >
+            <WelcomeScreen
+              title={survey.title}
+              description={survey.description}
+              onStart={handleStart}
+            />
+          </motion.div>
+        )}
+
+        {phase === "preparing" && (
+          <motion.div
+            key="preparing"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: durations.normal }}
+            className="flex-1 flex flex-col"
+          >
+            {/* Header matching chat style */}
+            <div
+              className="flex-shrink-0 glass border-b px-4 py-3 z-10"
+              style={{
+                background: "var(--bg-overlay)",
+                borderColor: "var(--border-subtle)",
+              }}
+            >
+              <div className="max-w-3xl mx-auto flex items-center gap-3">
+                <AvatarOrb size={36} />
+                <div>
+                  <p className="font-semibold text-[var(--text-primary)] text-[14px] leading-tight">
+                    {survey.title}
+                  </p>
+                </div>
+              </div>
+            </div>
+            {/* Typing indicator in the message area */}
+            <div className="flex-1 flex flex-col max-w-3xl w-full mx-auto pt-6">
+              <TypingIndicator />
+            </div>
+          </motion.div>
+        )}
+
+        {phase === "chat" && (
+          <motion.div
+            key="chat"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...springs.gentle, duration: durations.normal }}
+            className="flex-1 flex flex-col min-h-0"
+          >
+            <ChatContainer
+              key={sessionId}
+              sessionId={sessionId!}
+              surveyTitle={survey.title}
+              surveyDescription={survey.description}
+              initialMessages={initialMessages}
+              onRestart={handleRestart}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
+    </MotionConfig>
   );
 }
 

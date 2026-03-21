@@ -6,9 +6,26 @@ import React from "react";
  * Lightweight markdown renderer — no external deps, Turbopack-safe.
  * Supports: **bold**, *italic*, [links](url), `code`, lists, headings, blockquotes.
  */
-export function SimpleMarkdown({ content, className }: { content: string; className?: string }) {
+export function SimpleMarkdown({ content, className, showCursor }: { content: string; className?: string; showCursor?: boolean }) {
   const blocks = parseBlocks(content);
-  return <div className={className} dir="auto">{blocks}</div>;
+
+  let renderedBlocks = blocks;
+  if (showCursor && blocks.length > 0) {
+    const cursor = <span key="__cursor" className="streaming-cursor" />;
+    const lastIdx = blocks.length - 1;
+    const last = blocks[lastIdx] as React.ReactElement;
+    // Inject cursor inline inside the last block (usually <p>) so it sits on the same line as text
+    renderedBlocks = [
+      ...blocks.slice(0, lastIdx),
+      React.cloneElement(last, { key: last.key ?? lastIdx }, last.props.children, cursor),
+    ];
+  }
+
+  return (
+    <div className={className} dir="auto">
+      {renderedBlocks}
+    </div>
+  );
 }
 
 function parseBlocks(text: string): React.ReactNode[] {
@@ -32,10 +49,10 @@ function parseBlocks(text: string): React.ReactNode[] {
       const level = headingMatch[1].length;
       const text = headingMatch[2];
       const cls = level === 1
-        ? "text-base font-bold mb-1 mt-2 first:mt-0"
+        ? "text-[16px] font-bold mb-1.5 mt-3 first:mt-0 text-[var(--text-primary)]"
         : level === 2
-        ? "text-sm font-bold mb-1 mt-2 first:mt-0"
-        : "text-sm font-semibold mb-1 mt-1 first:mt-0";
+        ? "text-[15px] font-bold mb-1 mt-2.5 first:mt-0 text-[var(--text-primary)]"
+        : "text-[14px] font-semibold mb-1 mt-2 first:mt-0 text-[var(--text-primary)]";
       nodes.push(
         React.createElement(`h${level}`, { key: key++, className: cls }, parseInline(text))
       );
@@ -51,7 +68,14 @@ function parseBlocks(text: string): React.ReactNode[] {
         i++;
       }
       nodes.push(
-        <blockquote key={key++} className="border-l-2 border-gray-300 dark:border-gray-600 pl-3 italic text-gray-600 dark:text-gray-400 my-1">
+        <blockquote
+          key={key++}
+          className="border-l-2 pl-3 italic my-1.5 text-[14px]"
+          style={{
+            borderColor: "var(--border-subtle)",
+            color: "var(--text-secondary)",
+          }}
+        >
           {parseInline(quoteLines.join(" "))}
         </blockquote>
       );
@@ -66,9 +90,11 @@ function parseBlocks(text: string): React.ReactNode[] {
         i++;
       }
       nodes.push(
-        <ul key={key++} className="list-disc list-inside mb-2 space-y-0.5 pl-1">
+        <ul key={key++} className="list-disc list-inside mb-2 space-y-1 pl-1">
           {items.map((item, j) => (
-            <li key={j} className="leading-relaxed">{parseInline(item)}</li>
+            <li key={j} className="leading-relaxed text-[var(--text-primary)]">
+              {parseInline(item)}
+            </li>
           ))}
         </ul>
       );
@@ -83,9 +109,11 @@ function parseBlocks(text: string): React.ReactNode[] {
         i++;
       }
       nodes.push(
-        <ol key={key++} className="list-decimal list-inside mb-2 space-y-0.5 pl-1">
+        <ol key={key++} className="list-decimal list-inside mb-2 space-y-1 pl-1">
           {items.map((item, j) => (
-            <li key={j} className="leading-relaxed">{parseInline(item)}</li>
+            <li key={j} className="leading-relaxed text-[var(--text-primary)]">
+              {parseInline(item)}
+            </li>
           ))}
         </ol>
       );
@@ -162,17 +190,34 @@ function parseInline(text: string): React.ReactNode {
     if (first.type === "bold") {
       parts.push(<strong key={key++} className="font-semibold">{first.match[1]}</strong>);
     } else if (first.type === "italic") {
-      parts.push(<em key={key++}>{first.match[1]}</em>);
+      parts.push(
+        <em key={key++} style={{ color: "var(--text-secondary)" }}>
+          {first.match[1]}
+        </em>
+      );
     } else if (first.type === "code") {
       parts.push(
-        <code key={key++} className="bg-gray-100 dark:bg-gray-900 rounded px-1 py-0.5 text-xs font-mono">
+        <code
+          key={key++}
+          className="rounded px-1.5 py-0.5 text-[12px] font-mono"
+          style={{
+            background: "var(--bg-surface-raised)",
+            color: "var(--accent-primary)",
+          }}
+        >
           {first.match[1]}
         </code>
       );
     } else if (first.type === "link") {
       parts.push(
-        <a key={key++} href={first.match[2]} target="_blank" rel="noopener noreferrer"
-          className="underline text-blue-600 dark:text-blue-400 hover:text-blue-800">
+        <a
+          key={key++}
+          href={first.match[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 transition-colors"
+          style={{ color: "var(--accent-primary)" }}
+        >
           {first.match[1]}
         </a>
       );

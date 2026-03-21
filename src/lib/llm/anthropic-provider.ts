@@ -8,27 +8,7 @@ import type {
   CacheConfig,
   LLMProvider,
 } from './provider';
-
-async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-      const status = (err as { status?: number }).status;
-      if (status !== undefined && (status === 429 || status >= 500)) {
-        if (attempt < maxRetries) {
-          const delay = Math.pow(2, attempt) * 1000;
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          continue;
-        }
-      }
-      throw err;
-    }
-  }
-  throw lastError;
-}
+import { withRetry } from '@/lib/llm/retry';
 
 function buildSystemParam(
   systemPrompt: string,
@@ -98,7 +78,9 @@ export class AnthropicProvider implements LLMProvider {
     };
 
     const rawStream = await withRetry(() =>
-      Promise.resolve(this.client.messages.stream(createParams))
+      Promise.resolve(this.client.messages.stream(
+        createParams as unknown as Anthropic.MessageStreamParams
+      ))
     );
 
     // Track which indices are tool blocks
