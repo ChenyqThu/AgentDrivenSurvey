@@ -22,6 +22,7 @@ import type {
 import type { ConversationState, ExtractedField } from '@/lib/conversation/types';
 
 import { buildSoul } from './prompts/soul';
+import { buildResponseFormat } from './prompts/response-format';
 import { buildStrategy } from './prompts/strategy';
 import { buildThemes } from './prompts/themes';
 import { buildContext } from './prompts/context';
@@ -63,6 +64,8 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
     product: context.product,
   });
 
+  const responseFormat = buildResponseFormat();
+
   const themes = buildThemes({
     schema,
     context,
@@ -103,7 +106,9 @@ export function buildSystemPrompt(params: BuildSystemPromptParams): string {
 
   const languageBlock = `# Language
 
-Default to English. If the user writes in Chinese or another language → switch immediately, maintain that language throughout, including card text.`;
+**Always respond in English by default**, including your opening message and all card text. The survey themes may be written in any language — do NOT use theme language as a signal.
+
+Only switch languages if the user actually types in another language first. When they do, mirror their script exactly (simplified Chinese stays simplified, traditional stays traditional, etc.) and maintain that language for the rest of the conversation, including card text.`;
 
   const toolsBlock = `# Tools
 
@@ -124,17 +129,23 @@ Your first message (self-introduction):
 6. Do NOT ask any interview questions in the opening — wait for the user to click the button`;
 
   // --- Final assembly ---
+  // Order optimized for attention curve (G2: first/last anchoring):
+  //   guardrails (absolute rules) → soul (identity) → responseFormat (per-message rules, high position)
+  //   → themes → strategy → context → language → tools → overrides → start (only round 0)
+
+  const isFirstRound = state.roundCount === 0;
 
   return [
     guardrails,
     soul,
+    responseFormat,
     themes,
     strategy,
     dynamicContext,
     languageBlock,
     toolsBlock,
     overrideBlock,
-    startBlock,
+    isFirstRound ? startBlock : null,
   ]
     .filter(Boolean)
     .join('\n\n---\n\n');
