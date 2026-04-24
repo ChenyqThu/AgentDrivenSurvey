@@ -36,6 +36,7 @@ User opens link
 | **Prompt caching** | ~90% cost reduction via Anthropic cache |
 | **Notion integration** | Auto-sync structured data + conversation transcript on completion |
 | **New Chat** | One-click restart from header, no URL hacking needed |
+| **Token-driven design system** | Full CSS custom property palette with dark-mode parity; shared `Button` / `StatusBadge` / `Skeleton` / `AnimatedText` primitives; motion tokens in `src/lib/motion.ts`. Impeccable + emil-design-eng + animate-text skills power the agent-assisted workflow |
 
 ## Architecture Overview
 
@@ -199,6 +200,8 @@ Sessions auto-sync on completion when `autoSync` is enabled.
 
 - [Architecture (EN)](docs/architecture.md) — Full system design
 - [Architecture (中文)](docs/architecture.zh-CN.md) — 完整系统架构
+- [Design System (EN)](docs/design-system.md) — Tokens, motion, components, agent-assisted workflow
+- [Design System (中文)](docs/design-system.zh-CN.md) — 前端设计系统完整说明
 - [Survey Input Guide](docs/survey-input-guide.md) — Questionnaire input best practices
 
 ## License

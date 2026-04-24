@@ -228,11 +228,12 @@ admin_users ← surveys ← sessions ← messages
 ## 10. Frontend Architecture
 
 ### 10.1 Chat UI
-- **Inline typing indicator**: Loading animation shows inside AI message bubble (not fixed at bottom), replaced by streaming text when first token arrives
-- **Streaming cursor**: Injected inline inside the last `<p>` element so it sits on the same line as text (not on a new line below)
-- **Interactive cards**: GPU-accelerated entrance animation (`opacity + y + scale`), no height animation to avoid layout reflow jank. Rendered inline in message flow, disabled after submission
+- **Inline typing indicator**: Loading animation shows inside AI message bubble (not fixed at bottom), replaced by streaming text when first token arrives. Quirky phrase rotates every 3–6s (randomized) to avoid mechanical feel on slow networks
+- **Streaming cursor**: 3px caret with a warm color-mix glow, injected inline inside the last `<p>` element so it sits on the same line as text
+- **Interactive cards**: GPU-accelerated entrance animation (`opacity + y + scale`), no height animation to avoid layout reflow jank. Rendered inline in message flow, disabled after submission. Multi-select cards show a live "已选 N / 上限" counter that shifts to the accent color once the min-select threshold is met
 - **New Chat button**: Header restart button creates fresh session, replaces `?new=1` URL hack
-- **Welcome screen**: Warm design with trust signals (duration, confidentiality, no pressure)
+- **Welcome screen**: Warm design with trust signals (duration, confidentiality, no pressure); hero title reveals via `SoftBlurIn` per-character animation (auto-switches to per-word for copy >40 characters)
+- **Completion card**: "Interview Complete" reveals via `PerWordCrossfade`; confetti burst fires at 700ms to land on the peak of `completionSequence.glow`
 
 ### 10.2 Session Lifecycle
 ```
@@ -241,6 +242,32 @@ page load → fetch survey info → welcome screen
   → conversation → auto-complete / conclude_interview → done
   → "New Chat" button → create new session → chat
 ```
+
+### 10.3 Design System
+All visual and motion work flows through a shared system described in
+[`docs/design-system.md`](./design-system.md). Highlights:
+
+- **Design tokens** ([`src/app/globals.css`](../src/app/globals.css)) for
+  color, radius, shadow, typography, gradients — full dark-mode parity.
+  Hardcoded Tailwind utilities (`bg-gray-900`, `text-blue-600`) are bugs.
+- **Motion tokens** ([`src/lib/motion.ts`](../src/lib/motion.ts)) with
+  spring presets, duration buckets, stagger helpers, and reusable variants.
+- **Shared component library** ([`src/components/ui/*`](../src/components/ui/)):
+  `Button` + `buttonClassName` (7 variants, server/client split),
+  `StatusBadge`, `Skeleton` family, and `AnimatedText` (`SoftBlurIn` /
+  `PerWordCrossfade` / `CountUp`).
+- **Project design context** ([`.impeccable.md`](../.impeccable.md))
+  captures brand personality ("科技·可靠·温暖"), audience split
+  (respondents vs admins), register map (brand vs product), and five
+  guiding principles. Loaded automatically by Impeccable skill commands.
+- **Agent-assisted workflow** — Impeccable (`/polish`, `/animate`,
+  `/critique`, `/audit`, `/normalize`, etc.), `emil-design-eng`, and
+  `pixel-point/animate-text` skills are installed via `npx skills add`.
+  The lockfile [`skills-lock.json`](../skills-lock.json) is committed for
+  reproducibility; the installed skill content under `.agents/` is
+  gitignored.
+
+See [`docs/design-system.md`](./design-system.md) for the full reference.
 
 ## 11. API Design
 ```

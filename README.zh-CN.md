@@ -29,7 +29,7 @@
   → SSE 流式响应到前端
 ```
 
-详见 [docs/architecture.zh-CN.md](./docs/architecture.zh-CN.md) 完整架构文档。
+详见 [docs/architecture.zh-CN.md](./docs/architecture.zh-CN.md) 完整架构文档。前端视觉/动效系统独立整理于 [docs/design-system.zh-CN.md](./docs/design-system.zh-CN.md)（含 design tokens、动效 variants、共享组件库、Impeccable + emil-design-eng + animate-text 的 agent 协作流程）。
 
 ## 技术栈
 

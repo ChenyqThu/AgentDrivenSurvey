@@ -37,13 +37,16 @@ src/
 │   ├── notion/    # Notion 集成（数据库创建、数据同步、对话记录导出）
 │   └── analysis/  # 个体 + 聚合分析（Phase 2）
 ├── components/
-│   ├── admin/     # 管理端 UI 组件
-│   └── chat/      # 聊天 UI：消息、输入、交互卡片、欢迎屏、内联 typing 指示器
+│   ├── admin/     # 管理端 UI 组件（dashboard-view 等动画壳）
+│   ├── chat/      # 聊天 UI：消息、输入、交互卡片、欢迎屏、内联 typing 指示器
+│   └── ui/        # 共享组件库（Button / StatusBadge / Skeleton / AnimatedText）
 └── hooks/         # React hooks（useChat 含 idle nudge 机制）
 docs/
-├── architecture.md        # 系统架构（英文）
-├── architecture.zh-CN.md  # 系统架构（中文）
-└── survey-input-guide.md  # 系统设计思路与输入最佳实践指南
+├── architecture.md           # 系统架构（英文）
+├── architecture.zh-CN.md     # 系统架构（中文）
+├── design-system.md          # 前端设计系统（英文 — tokens/motion/components/agent 流程）
+├── design-system.zh-CN.md    # 前端设计系统（中文）
+└── survey-input-guide.md     # 系统设计思路与输入最佳实践指南
 ```
 
 ## 核心架构决策
@@ -82,6 +85,9 @@ Card interaction 在 closing 阶段时，engine.ts 注入提示让 AI 继续收�
 
 ### 对话健康（Nudge 机制）
 前端 45s 空闲检测 → `isNudge: true` 请求 → 后端注入自检提示 → AI 自然续话（不存用户消息）→ 每会话最多 3 次；最后一条消息含交互卡片时跳过
+
+### 前端设计系统
+视觉/动效走 **token 驱动**：颜色/圆角/阴影/字体/渐变全部在 `src/app/globals.css` 的 CSS custom properties（含 light/dark 对齐），动效 variants 在 `src/lib/motion.ts`。**禁止硬编码 Tailwind 色工具**（`bg-gray-900` / `text-blue-600` 等）。共享原语在 `src/components/ui/`：`Button` + `buttonClassName`（7 variant，server/client 分层）、`StatusBadge`、`Skeleton` 族、`AnimatedText`（SoftBlurIn / PerWordCrossfade / CountUp，翻译自 pixel-point/animate-text specs）。项目级设计上下文 `.impeccable.md` 固化品牌（科技·可靠·温暖）+ register 分区（chat=brand, admin=product），被 Impeccable 斜杠命令自动加载。完整说明见 `docs/design-system.md`。
 
 ### 其他决策
 - **两阶段 Agent 构建**：Schema Agent（结构化问卷）和 Config Agent（人设/技能/行为）独立运行，均使用 Opus 模型

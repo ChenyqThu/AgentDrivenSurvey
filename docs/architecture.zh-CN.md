@@ -236,10 +236,12 @@ admin_users ← surveys ← sessions ← messages
 ## 10. 前端架构
 
 ### 10.1 聊天 UI
-- **内联 typing 指示器**：加载动画在 AI 消息气泡内显示（不是固定在底部），首 token 出现后替换为流式文本
+- **内联 typing 指示器**：加载动画在 AI 消息气泡内显示（不是固定在底部），首 token 出现后替换为流式文本。俏皮短语以 3–6s 随机间隔轮换，避免慢网环境下节奏抽搐
+- **流光标**：3px 竖线 + 暖色 color-mix 光晕，内联注入到最后一个 `<p>` 内部，与正文同行
+- **交互卡片**：GPU 加速入场动画（`opacity + y + scale`），不做高度动画避免布局抖动；提交后只读。多选卡顶部带实时"已选 N / 上限"计数器，达标时切换到主色
 - **New Chat 按钮**：顶部栏重启按钮，创建新会话，替代 `?new=1` URL 参数
-- **欢迎屏**：温暖的设计，包含信任信号（时长、保密性、无压力）
-- **交互卡片**：在消息流中内联渲染，提交后禁用
+- **欢迎屏**：温暖的设计 + 信任信号（时长、保密性、无压力）；hero 标题走 `SoftBlurIn` 的 per-character 入场（>40 字自动转 per-word）
+- **完成页**："Interview Complete" 走 `PerWordCrossfade`；confetti 在 700ms 触发，刚好落在 `completionSequence.glow` 峰值
 
 ### 10.2 会话生命周期
 ```
@@ -248,6 +250,30 @@ admin_users ← surveys ← sessions ← messages
   → 对话 → 自动完成 / conclude_interview → 结束
   → "New Chat" 按钮 → 创建新会话 → 聊天
 ```
+
+### 10.3 设计系统
+所有视觉与动效工作走一套共享系统，详见
+[`docs/design-system.zh-CN.md`](./design-system.zh-CN.md)。要点：
+
+- **Design tokens**（[`src/app/globals.css`](../src/app/globals.css)）
+  覆盖颜色、圆角、阴影、字体、渐变，light/dark 完整对齐。
+  硬编码 Tailwind（`bg-gray-900`、`text-blue-600`）视为 bug。
+- **动效 tokens**（[`src/lib/motion.ts`](../src/lib/motion.ts)）：弹簧
+  预设、时长分档、stagger 辅助、可复用 variants。
+- **共享组件库**（[`src/components/ui/*`](../src/components/ui/)）：
+  `Button` + `buttonClassName`（7 variant，server/client 分层）、
+  `StatusBadge`、`Skeleton` 族、`AnimatedText`（`SoftBlurIn` /
+  `PerWordCrossfade` / `CountUp`）。
+- **项目级设计上下文**（[`.impeccable.md`](../.impeccable.md)）
+  固化品牌人格（"科技·可靠·温暖"）、受众分层（受访者 vs 管理员）、
+  register 映射（brand vs product）、五大原则。被 Impeccable 斜杠
+  命令自动加载。
+- **Agent 协作工作流**：Impeccable（`/polish`、`/animate`、`/critique`、
+  `/audit`、`/normalize` 等）、`emil-design-eng`、`pixel-point/animate-text`
+  三套 skill 通过 `npx skills add` 安装。锁文件 [`skills-lock.json`](../skills-lock.json)
+  提交进仓库以保证可复现；`.agents/` 下的安装产物 gitignored。
+
+完整参考见 [`docs/design-system.zh-CN.md`](./design-system.zh-CN.md)。
 
 ## 11. API 设计
 ```
