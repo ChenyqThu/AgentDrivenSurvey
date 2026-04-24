@@ -71,7 +71,8 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
         <motion.button
           onClick={handleSend}
           disabled={isDisabled}
-          whileTap={isDisabled ? {} : { scale: 0.9 }}
+          whileTap={isDisabled ? {} : { scale: 0.95 }}
+          whileHover={isDisabled ? {} : { y: -1 }}
           transition={{ type: "spring", stiffness: 500, damping: 30 }}
           aria-label="发送消息"
           className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center mb-0.5 cursor-pointer disabled:cursor-not-allowed relative overflow-hidden"

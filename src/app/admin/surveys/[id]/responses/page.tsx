@@ -2,6 +2,11 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { motion } from "motion/react";
+import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { SkeletonRow } from "@/components/ui/skeleton";
+import { fadeUpVariants, staggerContainer, stagger, springs } from "@/lib/motion";
 
 interface SessionRow {
   id: string;
@@ -11,12 +16,6 @@ interface SessionRow {
   completedAt?: string | null;
   extractedDataCount?: number;
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  active: "bg-green-100 text-green-800",
-  completed: "bg-blue-100 text-blue-800",
-  abandoned: "bg-gray-100 text-gray-600",
-};
 
 export default function ResponsesPage({
   params,
@@ -86,52 +85,147 @@ export default function ResponsesPage({
         <div>
           <Link
             href={`/admin/surveys/${id}`}
-            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-2"
+            className="text-sm flex items-center gap-1 mb-2 transition-colors duration-150 hover:text-[var(--text-primary)]"
+            style={{ color: "var(--text-secondary)" }}
           >
             &larr; Survey Detail
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900">Responses</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1
+            className="text-[var(--type-display-size)] font-bold leading-[var(--type-display-line)] tracking-[var(--type-display-tracking)]"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Responses
+          </h1>
+          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
             {sessions.length} session{sessions.length !== 1 ? "s" : ""} recorded
           </p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
-          <button
+          <Button
             onClick={exportCSV}
             disabled={sessions.length === 0}
-            className="px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            variant="outline"
+            size="sm"
           >
             Export CSV
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={exportJSON}
             disabled={sessions.length === 0}
-            className="px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            variant="outline"
+            size="sm"
           >
             Export JSON
-          </button>
+          </Button>
         </div>
       </div>
 
       {error && (
-        <div className="mb-5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+        <div
+          className="mb-5 border text-sm rounded-[var(--radius-sm)] px-4 py-3"
+          style={{
+            background: "var(--accent-danger-soft)",
+            borderColor:
+              "color-mix(in srgb, var(--accent-danger) 25%, transparent)",
+            color: "var(--accent-danger)",
+          }}
+        >
           {error}
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div
+        className="rounded-[var(--radius-md)] border overflow-hidden"
+        style={{
+          background: "var(--bg-surface)",
+          borderColor: "var(--border-subtle)",
+          boxShadow: "var(--shadow-card)",
+        }}
+      >
         {loading ? (
-          <div className="px-6 py-16 text-center text-sm text-gray-400">
-            Loading responses…
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead
+                className="text-[11px] uppercase tracking-wider"
+                style={{
+                  background: "var(--bg-surface-raised)",
+                  color: "var(--text-tertiary)",
+                }}
+              >
+                <tr>
+                  <th className="px-6 py-3 text-left font-medium">
+                    Respondent ID
+                  </th>
+                  <th className="px-6 py-3 text-left font-medium">Status</th>
+                  <th className="px-6 py-3 text-left font-medium">Started</th>
+                  <th className="px-6 py-3 text-left font-medium">Completed</th>
+                  <th className="px-6 py-3 text-right font-medium">Fields</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <SkeletonRow key={i} columns={5} />
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : sessions.length === 0 ? (
-          <div className="px-6 py-16 text-center text-sm text-gray-400">
-            No responses yet.
-          </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ ...springs.gentle, delay: 0.1 }}
+            className="px-6 py-16 text-center flex flex-col items-center gap-4"
+          >
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center"
+              style={{
+                background: "var(--accent-warm-soft)",
+                color: "var(--accent-warm)",
+              }}
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+              </svg>
+            </div>
+            <div>
+              <p
+                className="text-sm font-medium mb-1"
+                style={{ color: "var(--text-primary)" }}
+              >
+                No responses yet
+              </p>
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                Share the survey link to start collecting interviews.
+              </p>
+            </div>
+            <Link
+              href={`/admin/surveys/${id}`}
+              className="inline-flex items-center gap-1 text-sm font-medium hover:underline mt-1"
+              style={{ color: "var(--accent-primary)" }}
+            >
+              &larr; Back to survey
+            </Link>
+          </motion.div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+              <thead
+                className="text-[11px] uppercase tracking-wider"
+                style={{
+                  background: "var(--bg-surface-raised)",
+                  color: "var(--text-tertiary)",
+                }}
+              >
                 <tr>
                   <th className="px-6 py-3 text-left font-medium">
                     Respondent ID
@@ -148,41 +242,56 @@ export default function ResponsesPage({
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {sessions.map((session) => (
-                  <tr
+              <motion.tbody
+                initial="initial"
+                animate="animate"
+                variants={staggerContainer(stagger.fast)}
+              >
+                {sessions.map((session, i) => (
+                  <motion.tr
                     key={session.id}
-                    className="hover:bg-gray-50 transition-colors"
+                    variants={fadeUpVariants}
+                    whileHover={{ backgroundColor: "var(--bg-surface-raised)" }}
+                    transition={{ duration: 0.15 }}
+                    style={{
+                      borderTop:
+                        i === 0 ? "none" : "1px solid var(--border-subtle)",
+                    }}
                   >
-                    <td className="px-6 py-4 font-mono text-xs text-gray-700">
+                    <td
+                      className="px-6 py-4 font-mono text-xs"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       {session.respondentId}
                     </td>
                     <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
-                          STATUS_COLORS[session.status] ??
-                          "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {session.status}
-                      </span>
+                      <StatusBadge status={session.status} size="sm" />
                     </td>
-                    <td className="px-6 py-4 text-gray-500 text-xs">
+                    <td
+                      className="px-6 py-4 text-xs"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {session.startedAt
                         ? new Date(session.startedAt).toLocaleString()
                         : "—"}
                     </td>
-                    <td className="px-6 py-4 text-gray-500 text-xs">
+                    <td
+                      className="px-6 py-4 text-xs"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {session.completedAt
                         ? new Date(session.completedAt).toLocaleString()
                         : "—"}
                     </td>
-                    <td className="px-6 py-4 text-right text-gray-700">
+                    <td
+                      className="px-6 py-4 text-right"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       {session.extractedDataCount ?? 0}
                     </td>
-                  </tr>
+                  </motion.tr>
                 ))}
-              </tbody>
+              </motion.tbody>
             </table>
           </div>
         )}

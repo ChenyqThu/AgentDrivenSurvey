@@ -41,3 +41,8 @@ drizzle/meta/
 
 # omc
 .omc/
+
+# agent skills (installed via `npx skills` — reproducible from skills-lock.json)
+.agents/
+.claude/skills/
+skills/

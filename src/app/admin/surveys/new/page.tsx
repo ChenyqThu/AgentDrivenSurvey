@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { motion } from "motion/react";
+import { Button } from "@/components/ui/button";
+import { fadeUpVariants, staggerContainer, stagger } from "@/lib/motion";
 
 export default function NewSurveyPage() {
   const router = useRouter();
@@ -58,201 +61,272 @@ export default function NewSurveyPage() {
     }
   }
 
+  const inputStyle: React.CSSProperties = {
+    background: "var(--bg-surface)",
+    borderColor: "var(--border-subtle)",
+    color: "var(--text-primary)",
+  };
+
+  const inputClass =
+    "w-full px-3 py-2 border rounded-[var(--radius-sm)] text-sm transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] focus:border-transparent";
+
   return (
     <div className="p-8 max-w-2xl mx-auto">
       <div className="mb-6">
         <Link
           href="/admin"
-          className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+          className="text-sm flex items-center gap-1 transition-colors duration-150 hover:text-[var(--text-primary)]"
+          style={{ color: "var(--text-secondary)" }}
         >
           &larr; Dashboard
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900 mt-3">
+        <h1
+          className="text-[var(--type-display-size)] font-bold leading-[var(--type-display-line)] tracking-[var(--type-display-tracking)] mt-3"
+          style={{ color: "var(--text-primary)" }}
+        >
           Create New Survey
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
           Paste your questionnaire and the AI will generate a structured survey
           schema.
         </p>
       </div>
 
       {error && (
-        <div className="mb-5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+        <div
+          className="mb-5 border text-sm rounded-[var(--radius-sm)] px-4 py-3"
+          style={{
+            background: "var(--accent-danger-soft)",
+            borderColor:
+              "color-mix(in srgb, var(--accent-danger) 25%, transparent)",
+            color: "var(--accent-danger)",
+          }}
+        >
           {error}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <motion.form
+        onSubmit={handleSubmit}
+        className="space-y-6"
+        initial="initial"
+        animate="animate"
+        variants={staggerContainer(stagger.normal)}
+      >
         {/* Basic info */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5">
-          <h2 className="font-semibold text-gray-900 text-sm uppercase tracking-wide text-gray-500">
-            Basic Information
-          </h2>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Survey Title <span className="text-red-500">*</span>
-            </label>
+        <FormSection title="Basic Information">
+          <FormField
+            label="Survey Title"
+            required
+          >
             <input
               type="text"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Product Satisfaction Survey Q1 2025"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={inputClass}
+              style={inputStyle}
             />
-          </div>
+          </FormField>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Description{" "}
-              <span className="text-gray-400 font-normal">(optional)</span>
-            </label>
+          <FormField
+            label="Description"
+            hint="(optional)"
+          >
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
               placeholder="Brief description of the survey's purpose"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className={`${inputClass} resize-none`}
+              style={inputStyle}
             />
-          </div>
-        </div>
+          </FormField>
+        </FormSection>
 
         {/* Questionnaire */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5">
-          <div>
-            <h2 className="font-semibold text-gray-900 text-sm uppercase tracking-wide text-gray-500 mb-1">
-              Questionnaire
-            </h2>
-            <p className="text-xs text-gray-400">
-              Paste your raw questionnaire. The AI will parse it into a
-              structured schema.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Questionnaire Text <span className="text-red-500">*</span>
-            </label>
+        <FormSection
+          title="Questionnaire"
+          description="Paste your raw questionnaire. The AI will parse it into a structured schema."
+        >
+          <FormField
+            label="Questionnaire Text"
+            required
+          >
             <textarea
               required
               value={rawInput}
               onChange={(e) => setRawInput(e.target.value)}
               rows={10}
-              placeholder={"1. How satisfied are you with our product?\n2. What features do you use most?\n3. Would you recommend us to a friend?"}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+              placeholder={
+                "1. How satisfied are you with our product?\n2. What features do you use most?\n3. Would you recommend us to a friend?"
+              }
+              className={`${inputClass} font-mono resize-y`}
+              style={inputStyle}
             />
-          </div>
-        </div>
+          </FormField>
+        </FormSection>
 
         {/* Context */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5">
-          <div>
-            <h2 className="font-semibold text-gray-900 text-sm uppercase tracking-wide text-gray-500 mb-1">
-              Context{" "}
-              <span className="text-gray-400 font-normal normal-case">
-                (optional, improves AI quality)
-              </span>
-            </h2>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Product / Service
-            </label>
+        <FormSection
+          title="Context"
+          hint="(optional, improves AI quality)"
+        >
+          <FormField label="Product / Service">
             <input
               type="text"
               value={product}
               onChange={(e) => setProduct(e.target.value)}
               placeholder="e.g. Mobile banking app"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={inputClass}
+              style={inputStyle}
             />
-          </div>
+          </FormField>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Target Users
-            </label>
+          <FormField label="Target Users">
             <input
               type="text"
               value={targetUsers}
               onChange={(e) => setTargetUsers(e.target.value)}
               placeholder="e.g. Young professionals aged 25-35"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={inputClass}
+              style={inputStyle}
             />
-          </div>
+          </FormField>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Focus Areas{" "}
-              <span className="text-gray-400 font-normal">
-                (comma-separated)
-              </span>
-            </label>
+          <FormField
+            label="Focus Areas"
+            hint="(comma-separated)"
+          >
             <input
               type="text"
               value={focusAreas}
               onChange={(e) => setFocusAreas(e.target.value)}
               placeholder="e.g. usability, pricing, customer support"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={inputClass}
+              style={inputStyle}
             />
-          </div>
-        </div>
+          </FormField>
+        </FormSection>
 
         <div className="flex items-center justify-between pt-2">
           <Link
             href="/admin"
-            className="text-sm text-gray-500 hover:text-gray-700"
+            className="text-sm transition-colors duration-150 hover:text-[var(--text-primary)]"
+            style={{ color: "var(--text-secondary)" }}
           >
             Cancel
           </Link>
-          <button
+          <Button
             type="submit"
             disabled={loading}
-            className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            loading={loading}
+            variant="primary"
+            size="lg"
+            style={loading ? undefined : { background: "var(--gradient-hero)" }}
           >
-            {loading ? (
-              <>
-                <SpinnerIcon className="w-4 h-4 animate-spin" />
-                Generating schema…
-              </>
-            ) : (
-              "Create Survey"
-            )}
-          </button>
+            {loading ? "Generating schema…" : "Create Survey"}
+          </Button>
         </div>
 
         {loading && (
-          <p className="text-xs text-gray-400 text-center -mt-2">
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            className="text-xs text-center -mt-2"
+            style={{ color: "var(--text-tertiary)" }}
+          >
             The AI is generating the survey schema. This may take 10–30 seconds.
-          </p>
+          </motion.p>
         )}
-      </form>
+      </motion.form>
     </div>
   );
 }
 
-function SpinnerIcon({ className }: { className?: string }) {
+function FormSection({
+  title,
+  description,
+  hint,
+  children,
+}: {
+  title: string;
+  description?: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <svg
-      className={className}
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
+    <motion.div
+      variants={fadeUpVariants}
+      className="rounded-[var(--radius-md)] border p-6 space-y-5"
+      style={{
+        background: "var(--bg-surface)",
+        borderColor: "var(--border-subtle)",
+        boxShadow: "var(--shadow-card)",
+      }}
     >
-      <circle
-        className="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="4"
-      />
-      <path
-        className="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-      />
-    </svg>
+      <div>
+        <h2
+          className="text-xs uppercase tracking-wider font-semibold"
+          style={{ color: "var(--text-tertiary)" }}
+        >
+          {title}{" "}
+          {hint && (
+            <span
+              className="font-normal normal-case tracking-normal"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              {hint}
+            </span>
+          )}
+        </h2>
+        {description && (
+          <p
+            className="text-xs mt-1"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            {description}
+          </p>
+        )}
+      </div>
+      {children}
+    </motion.div>
+  );
+}
+
+function FormField({
+  label,
+  required,
+  hint,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label
+        className="block text-sm font-medium mb-1.5"
+        style={{ color: "var(--text-primary)" }}
+      >
+        {label}{" "}
+        {required && (
+          <span style={{ color: "var(--accent-danger)" }}>*</span>
+        )}
+        {hint && (
+          <span
+            className="font-normal"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            {hint}
+          </span>
+        )}
+      </label>
+      {children}
+    </div>
   );
 }

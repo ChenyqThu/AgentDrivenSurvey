@@ -279,11 +279,31 @@ function MultiSelectCard({ card, onSubmit, disabled }: InteractiveCardProps) {
   return (
     <CardWrapper submitted={submitted}>
       <p className="text-[15px] font-semibold text-[var(--text-primary)] mb-1">{card.question}</p>
-      {!submitted && (
-        <p className="text-[12px] text-[var(--text-tertiary)] mb-3">
-          选择 {minSelect === maxSelect ? minSelect : `${minSelect}–${maxSelect}`} 项
-        </p>
-      )}
+      {!submitted && (() => {
+        const metMin = selected.size >= minSelect;
+        const atMax = selected.size >= maxSelect;
+        return (
+          <p className="text-[12px] mb-3 flex items-center gap-1.5" style={{ color: "var(--text-tertiary)" }}>
+            <span>
+              选择 {minSelect === maxSelect ? minSelect : `${minSelect}–${maxSelect}`} 项
+            </span>
+            <span style={{ color: "var(--text-tertiary)" }}>·</span>
+            <span
+              className="tabular-nums transition-colors duration-150"
+              style={{
+                color: metMin
+                  ? "var(--accent-primary)"
+                  : "var(--text-tertiary)",
+                fontWeight: metMin ? 600 : 400,
+              }}
+              aria-live="polite"
+            >
+              已选 {selected.size}
+              {atMax && <span className="ml-1 text-[11px] opacity-70">(上限)</span>}
+            </span>
+          </p>
+        );
+      })()}
       <div className="flex flex-col gap-2">
         {options.map((opt) => {
           const isSelected = selected.has(opt);

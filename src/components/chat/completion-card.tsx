@@ -5,6 +5,7 @@ import { motion, useAnimationControls } from "motion/react";
 import { CheckCircle2, RotateCcw } from "lucide-react";
 import { AvatarOrb } from "./avatar-orb";
 import { completionSequence } from "@/lib/motion";
+import { PerWordCrossfade } from "@/components/ui/animated-text";
 
 interface CompletionCardProps {
   onRestart?: () => void;
@@ -60,13 +61,14 @@ export function CompletionCard({ onRestart }: CompletionCardProps) {
           </div>
         </motion.div>
 
-        {/* Title */}
-        <motion.p
-          className="text-lg font-semibold text-[var(--text-primary)] mb-2"
-          variants={completionSequence.text}
-        >
-          Interview Complete
-        </motion.p>
+        {/* Title — per-word-crossfade spec (earned celebratory moment allows >300ms) */}
+        <motion.div variants={completionSequence.text}>
+          <PerWordCrossfade
+            as="p"
+            text="Interview Complete"
+            className="text-lg font-semibold text-[var(--text-primary)] mb-2"
+          />
+        </motion.div>
 
         {/* Subtitle */}
         <motion.p

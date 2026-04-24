@@ -25,8 +25,17 @@ const QUIRKY_PHRASES = [
   "Warming up the neurons...",
 ];
 
-function pickRandom(): string {
-  return QUIRKY_PHRASES[Math.floor(Math.random() * QUIRKY_PHRASES.length)];
+function pickRandom(exclude?: string): string {
+  // Avoid consecutive repeats so the swap always feels intentional.
+  const pool = exclude
+    ? QUIRKY_PHRASES.filter((p) => p !== exclude)
+    : QUIRKY_PHRASES;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+// Each phrase gets a 3–6s window on screen — avoids mechanical 3s twitch on slow networks.
+function nextDelayMs(): number {
+  return 3000 + Math.random() * 3000;
 }
 
 /**
@@ -34,12 +43,25 @@ function pickRandom(): string {
  * when content hasn't arrived yet.
  */
 export function InlineTypingIndicator() {
-  const [phrase, setPhrase] = useState("");
+  // Client-only component (parent is "use client"), so a randomized initial
+  // value is safe — no SSR hydration mismatch to worry about.
+  const [phrase, setPhrase] = useState<string>(() => pickRandom());
 
   useEffect(() => {
-    setPhrase(pickRandom());
-    const interval = setInterval(() => setPhrase(pickRandom()), 3000);
-    return () => clearInterval(interval);
+    let current = phrase;
+    let timer: ReturnType<typeof setTimeout>;
+    function schedule() {
+      timer = setTimeout(() => {
+        current = pickRandom(current);
+        setPhrase(current);
+        schedule();
+      }, nextDelayMs());
+    }
+    schedule();
+    return () => clearTimeout(timer);
+    // Intentionally run once on mount; phrase rotation is managed via the
+    // internal `current` variable + setTimeout chain.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

@@ -88,10 +88,12 @@ export function ConfettiBurst({ trigger }: { trigger: boolean }) {
       rafId = requestAnimationFrame(animate);
     }
 
-    // Delay slightly for dramatic effect
+    // Fire ~700ms after trigger — aligns with completionSequence.glow reaching full
+    // intensity (container delayChildren 0.3s + glow ramp). Earlier than this and the
+    // burst feels disconnected from the celebration; later and it feels delayed.
     const timer = setTimeout(() => {
       rafId = requestAnimationFrame(animate);
-    }, 300);
+    }, 700);
 
     return () => {
       clearTimeout(timer);

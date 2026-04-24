@@ -13,7 +13,7 @@ export function SimpleMarkdown({ content, className, showCursor }: { content: st
   if (showCursor && blocks.length > 0) {
     const cursor = <span key="__cursor" className="streaming-cursor" />;
     const lastIdx = blocks.length - 1;
-    const last = blocks[lastIdx] as React.ReactElement;
+    const last = blocks[lastIdx] as React.ReactElement<{ children?: React.ReactNode }>;
     // Inject cursor inline inside the last block (usually <p>) so it sits on the same line as text
     renderedBlocks = [
       ...blocks.slice(0, lastIdx),
@@ -49,10 +49,10 @@ function parseBlocks(text: string): React.ReactNode[] {
       const level = headingMatch[1].length;
       const text = headingMatch[2];
       const cls = level === 1
-        ? "text-[16px] font-bold mb-1.5 mt-3 first:mt-0 text-[var(--text-primary)]"
+        ? "text-[var(--type-heading-1)] font-bold mb-1.5 mt-3 first:mt-0 text-[var(--text-primary)]"
         : level === 2
-        ? "text-[15px] font-bold mb-1 mt-2.5 first:mt-0 text-[var(--text-primary)]"
-        : "text-[14px] font-semibold mb-1 mt-2 first:mt-0 text-[var(--text-primary)]";
+        ? "text-[var(--type-heading-2)] font-bold mb-1 mt-2.5 first:mt-0 text-[var(--text-primary)]"
+        : "text-[var(--type-heading-3)] font-semibold mb-1 mt-2 first:mt-0 text-[var(--text-primary)]";
       nodes.push(
         React.createElement(`h${level}`, { key: key++, className: cls }, parseInline(text))
       );
@@ -70,7 +70,7 @@ function parseBlocks(text: string): React.ReactNode[] {
       nodes.push(
         <blockquote
           key={key++}
-          className="border-l-2 pl-3 italic my-1.5 text-[14px]"
+          className="border-l-2 pl-3 italic my-1.5 text-[var(--type-body-size)]"
           style={{
             borderColor: "var(--border-subtle)",
             color: "var(--text-secondary)",
@@ -199,7 +199,7 @@ function parseInline(text: string): React.ReactNode {
       parts.push(
         <code
           key={key++}
-          className="rounded px-1.5 py-0.5 text-[12px] font-mono"
+          className="rounded px-1.5 py-0.5 text-[var(--type-caption-size)] font-mono"
           style={{
             background: "var(--bg-surface-raised)",
             color: "var(--accent-primary)",

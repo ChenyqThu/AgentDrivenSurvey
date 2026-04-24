@@ -3,29 +3,54 @@ import { ReactNode } from "react";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen">
+    <div
+      className="flex min-h-screen"
+      style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}
+    >
       {/* Sidebar */}
-      <aside className="w-60 flex-shrink-0 bg-gray-900 text-white flex flex-col">
-        <div className="px-6 py-5 border-b border-gray-700">
+      <aside
+        className="w-60 flex-shrink-0 flex flex-col"
+        style={{
+          background: "var(--bg-surface)",
+          borderRight: "1px solid var(--border-subtle)",
+        }}
+      >
+        <div
+          className="px-6 py-5"
+          style={{ borderBottom: "1px solid var(--border-subtle)" }}
+        >
           <Link href="/admin" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center text-sm font-bold">
+            <div
+              className="w-7 h-7 rounded-[var(--radius-xs)] flex items-center justify-center text-sm font-bold"
+              style={{
+                background: "var(--gradient-hero)",
+                color: "var(--text-on-accent)",
+                boxShadow: "var(--shadow-glow-blue)",
+              }}
+            >
               A
             </div>
-            <span className="font-semibold text-sm tracking-wide">
+            <span
+              className="font-semibold text-sm tracking-wide"
+              style={{ color: "var(--text-primary)" }}
+            >
               Survey Admin
             </span>
           </Link>
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
-          <NavItem href="/admin" label="Dashboard" icon={DashboardIcon} exact />
+          <NavItem href="/admin" label="Dashboard" icon={DashboardIcon} />
           <NavItem
             href="/admin/surveys/new"
             label="Create Survey"
             icon={PlusIcon}
           />
           <div className="pt-4 pb-1 px-3">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <span
+              className="text-[11px] font-medium uppercase tracking-wider"
+              style={{ color: "var(--text-tertiary)" }}
+            >
               Surveys
             </span>
           </div>
@@ -36,13 +61,21 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           />
         </nav>
 
-        <div className="px-3 py-4 border-t border-gray-700">
+        <div
+          className="px-3 py-4"
+          style={{ borderTop: "1px solid var(--border-subtle)" }}
+        >
           <NavItem href="/admin/login" label="Login" icon={UserIcon} />
         </div>
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 bg-gray-50 overflow-auto">{children}</main>
+      <main
+        className="flex-1 overflow-auto"
+        style={{ background: "var(--bg-primary)" }}
+      >
+        {children}
+      </main>
     </div>
   );
 }
@@ -51,17 +84,15 @@ function NavItem({
   href,
   label,
   icon: Icon,
-  exact,
 }: {
   href: string;
   label: string;
   icon: React.FC<{ className?: string }>;
-  exact?: boolean;
 }) {
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+      className="nav-item flex items-center gap-3 px-3 py-2 rounded-[var(--radius-xs)] text-sm text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--bg-surface-raised)] hover:text-[var(--text-primary)]"
     >
       <Icon className="w-4 h-4 flex-shrink-0" />
       {label}

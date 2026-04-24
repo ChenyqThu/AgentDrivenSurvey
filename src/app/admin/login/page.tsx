@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -34,25 +35,65 @@ export default function LoginPage() {
     }
   }
 
+  const inputClass =
+    "w-full px-3 py-2 border rounded-[var(--radius-sm)] text-sm transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] focus:border-transparent";
+
+  const inputStyle: React.CSSProperties = {
+    background: "var(--bg-surface)",
+    borderColor: "var(--border-subtle)",
+    color: "var(--text-primary)",
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+    <div
+      className="min-h-screen flex items-center justify-center px-4"
+      style={{ background: "var(--bg-primary)" }}
+    >
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 text-white font-bold text-xl mb-4">
+          <div
+            className="inline-flex items-center justify-center w-12 h-12 rounded-[var(--radius-md)] font-bold text-xl mb-4"
+            style={{
+              background: "var(--gradient-hero)",
+              color: "var(--text-on-accent)",
+              boxShadow: "var(--shadow-glow-blue)",
+            }}
+          >
             A
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Admin Login</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1
+            className="text-2xl font-bold"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Admin Login
+          </h1>
+          <p
+            className="text-sm mt-1"
+            style={{ color: "var(--text-secondary)" }}
+          >
             Sign in to manage your surveys
           </p>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4"
+          className="rounded-[var(--radius-md)] border p-6 space-y-4"
+          style={{
+            background: "var(--bg-surface)",
+            borderColor: "var(--border-subtle)",
+            boxShadow: "var(--shadow-card)",
+          }}
         >
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+            <div
+              className="border text-sm rounded-[var(--radius-sm)] px-4 py-3"
+              style={{
+                background: "var(--accent-danger-soft)",
+                borderColor:
+                  "color-mix(in srgb, var(--accent-danger) 25%, transparent)",
+                color: "var(--accent-danger)",
+              }}
+            >
               {error}
             </div>
           )}
@@ -60,7 +101,8 @@ export default function LoginPage() {
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-gray-700 mb-1.5"
+              className="block text-sm font-medium mb-1.5"
+              style={{ color: "var(--text-primary)" }}
             >
               Email
             </label>
@@ -71,7 +113,8 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={inputClass}
+              style={inputStyle}
               placeholder="admin@example.com"
             />
           </div>
@@ -79,7 +122,8 @@ export default function LoginPage() {
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-gray-700 mb-1.5"
+              className="block text-sm font-medium mb-1.5"
+              style={{ color: "var(--text-primary)" }}
             >
               Password
             </label>
@@ -90,21 +134,29 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={inputClass}
+              style={inputStyle}
               placeholder="••••••••"
             />
           </div>
 
-          <button
+          <Button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 px-4 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            loading={loading}
+            variant="primary"
+            size="lg"
+            className="w-full"
+            style={loading ? undefined : { background: "var(--gradient-hero)" }}
           >
             {loading ? "Signing in…" : "Sign In"}
-          </button>
+          </Button>
         </form>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
+        <p
+          className="text-center text-xs mt-6"
+          style={{ color: "var(--text-tertiary)" }}
+        >
           <Link href="/" className="hover:underline">
             &larr; Back to home
           </Link>

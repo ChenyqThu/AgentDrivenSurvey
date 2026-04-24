@@ -3,6 +3,7 @@
 import { motion } from "motion/react";
 import { Clock, ShieldCheck, MessageCircleHeart, ArrowRight } from "lucide-react";
 import { AvatarOrb } from "./avatar-orb";
+import { SoftBlurIn } from "@/components/ui/animated-text";
 
 interface WelcomeScreenProps {
   title: string;
@@ -66,20 +67,22 @@ export function WelcomeScreen({ title, description, onStart }: WelcomeScreenProp
           <AvatarOrb size={80} className="shadow-[var(--shadow-glow-warm)]" />
         </motion.div>
 
-        {/* Title */}
-        <motion.h1
-          variants={itemVariants}
-          className="font-semibold mb-3 leading-snug"
-          style={{
-            fontSize: "var(--type-display-size)",
-            fontWeight: "var(--type-display-weight)",
-            lineHeight: "var(--type-display-line)",
-            letterSpacing: "var(--type-display-tracking)",
-            color: "var(--text-primary)",
-          }}
-        >
-          {title}
-        </motion.h1>
+        {/* Title — soft-blur-in per-character reveal (auto-switches to per-word >40 chars) */}
+        <motion.div variants={itemVariants}>
+          <SoftBlurIn
+            as="h1"
+            text={title}
+            delay={0.1}
+            className="font-semibold mb-3 leading-snug"
+            style={{
+              fontSize: "var(--type-display-size)",
+              fontWeight: "var(--type-display-weight)",
+              lineHeight: "var(--type-display-line)",
+              letterSpacing: "var(--type-display-tracking)",
+              color: "var(--text-primary)",
+            }}
+          />
+        </motion.div>
 
         {/* Description */}
         <motion.p
