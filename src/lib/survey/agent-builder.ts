@@ -152,8 +152,7 @@ The survey schema (questions, sections, extraction fields) has already been crea
    - Always detect impatience and allow skipping
 
 ## Guidelines
-- The language of the prompt template should match the survey language
-- When the questionnaire is in Chinese, generate Chinese prompt templates and card labels
+- Always generate all content (roleDescription, openingMessage, closingMessage, customRules, card labels) in English, regardless of the survey's original language
 - Reference question IDs and section IDs from the provided schema exactly`;
 
 // ─── Builder Function ────────────────────────────────────────────────────────

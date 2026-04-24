@@ -111,7 +111,7 @@ const SYSTEM_PROMPT =
   'and data extraction fields. Generate IDs in snake_case format (e.g., "section_demographics", "q_overall_satisfaction"). ' +
   'Write extraction field descriptions clearly so the extraction model knows what to look for. ' +
   'Follow-up rules should target genuinely interesting responses worth exploring. ' +
-  'The language of generated content should match the questionnaire language.';
+  'Always generate all content (section titles, descriptions, question text, follow-up rules, extraction field descriptions) in English, regardless of the input questionnaire language. Translate non-English input into clear, natural English.';
 
 export async function generateSurveySchema(
   rawInput: string,
